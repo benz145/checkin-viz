@@ -26,10 +26,16 @@
     <div></div>
     <label for="cals">Calories:</label>
     <input type="tel" class="span2" id="cals" name="cals" required>
-    <div id="caltier" class="f3 center">Tier: —</div>
+    <div class="f3 text-center">
+      <div id="caltier">Tier: -</div>
+      <div class="f0" id="nextCal"></div>
+    </div>
     <label for="time">Minutes:</label>
     <input type="tel" class="span2" id="time" name="time" required>
-    <div id="timetier" class="f3 center">Tier: —</div>
+    <div class="f3 text-center">
+      <div id="timetier">Tier: -</div>
+      <div class="f0" id="nextTime"></div>
+    </div>
     <button class="span4">Calculate</button>
   </form>
   <div class="center span3 f7">
@@ -48,6 +54,12 @@ function checkinTier(bmr, cals, time) {
     timeTier: timeTier
   };
 }
+function caloriesForTier(bmr, calTier) {
+  return Math.floor((((5*(calTier - 1))/100)+0.15) * bmr);
+}
+function timeForTier(timeTier) {
+  return Math.floor(15 * (timeTier + 1));
+}
 form.addEventListener('submit', (event) => {
   event.preventDefault();
   const bmr  = form.elements.challengers.value;
@@ -62,6 +74,9 @@ form.addEventListener('submit', (event) => {
   timetier.innerText = `Tier: ${timeTier}`
   caltier.innerText = `Tier: ${calTier}`
   tier.innerText = `Tier: ${maxTier}`;
+  nextTime.innerText = `${timeForTier(timeTier + 1) - time}min till tier ${timeTier + 1}`;
+  console.log(caloriesForTier(bmr, calTier + 1));
+  nextCal.innerText = `${caloriesForTier(bmr, calTier + 1) - cals}cals till tier ${calTier + 1}`;
   if (maxTier === calTier) {
     caltier.classList.add('bold');
   }
