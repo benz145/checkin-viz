@@ -74,9 +74,9 @@ form.addEventListener('submit', (event) => {
   timetier.innerText = `Tier: ${timeTier}`
   caltier.innerText = `Tier: ${calTier}`
   tier.innerText = `Tier: ${maxTier}`;
-  nextTime.innerText = `${timeForTier(timeTier + 1) - time}min till tier ${timeTier + 1}`;
+  nextTime.innerText = `next tier +${timeForTier(timeTier + 1) - time} min`;
   console.log(caloriesForTier(bmr, calTier + 1));
-  nextCal.innerText = `${caloriesForTier(bmr, calTier + 1) - cals}cals till tier ${calTier + 1}`;
+  nextCal.innerText = `next tier +${caloriesForTier(bmr, calTier + 1) - cals} cals`;
   if (maxTier === calTier) {
     caltier.classList.add('bold');
   }
