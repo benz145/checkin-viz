@@ -205,7 +205,8 @@ def index():
     cws = challenge_weeks()
     logging.debug("Weeks: %s", cws)
     current_challenge_weeks = next(v for v in cws if v[0][0] == current_challenge.name)
-    logging.info("Current week index: %s", current_challenge_weeks)
+    logging.info("Current week index: %s, id: %s", current_challenge_weeks, week_id)
+
     week_index = (
         next(i for i, v in enumerate(current_challenge_weeks) if v[1] == int(week_id))
         + 1
