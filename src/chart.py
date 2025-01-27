@@ -134,29 +134,36 @@ def checkin_chart(
     logging.info("knocked out: %s", knocked_out_names)
     logging.info("Achievements: %s", achievements)
     text_color = "black" if green else ""
-    for column, chart in enumerate(data):
-        yLabel = chart.name
-        hasMulliganed = chart.hasMulliganed
-        is_knocked_out = yLabel in knocked_out_names
-        a = svgwrite.container.Hyperlink("/challenger/%s" % chart.name, target="_self")
-        mulligan_circle = dwg.circle(
-            center=(5, rectH * column + hGap * column + gutter + rectH / 4),
-            r=5,
-            stroke=greens[5],
-            fill="transparent" if hasMulliganed else greens[5],
-        )
-        if hasMulliganed:
-            mulligan_circle.fill = "transparent"
-        text1 = dwg.text(
-            yLabel,
-            insert=(15, rectH * column + hGap * column + gutter + rectH / 2),
-            font_size=14,
-            text_decoration="line-through" if is_knocked_out else "",
-            fill="currentcolor",
-        )
-        dwg.add(mulligan_circle)
-        a.add(text1)
-        dwg.add(a)
+for column, chart in enumerate(data):
+    yLabel = chart.name
+    hasMulliganed = chart.hasMulliganed
+    is_knocked_out = yLabel in knocked_out_names
+    
+    # Add football emoji if the challenger is in the list
+    # Special code for the Eagles Super Bowl Challenge - can be safely removed after February 9th, 2025
+    challengers_with_emoji = ["Challenger3", "Ben", "James", "Alex", "Julia", "Wyatt", "JR", "Thomas"]
+    if yLabel in challengers_with_emoji:
+        yLabel += " 🏈"
+    
+    a = svgwrite.container.Hyperlink("/challenger/%s" % chart.name, target="_self")
+    mulligan_circle = dwg.circle(
+        center=(5, rectH * column + hGap * column + gutter + rectH / 4),
+        r=5,
+        stroke=greens[5],
+        fill="transparent" if hasMulliganed else greens[5],
+    )
+    if hasMulliganed:
+        mulligan_circle.fill = "transparent"
+    text1 = dwg.text(
+        yLabel,
+        insert=(15, rectH * column + hGap * column + gutter + rectH / 2),
+        font_size=14,
+        text_decoration="line-through" if is_knocked_out else "",
+        fill="currentcolor",
+    )
+    dwg.add(mulligan_circle)
+    a.add(text1)
+    dwg.add(a)
         for row, dataUnit in enumerate(chart.data):
             x = dataUnit.x
             checkedIn = dataUnit.checkedIn
