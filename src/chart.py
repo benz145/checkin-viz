@@ -136,6 +136,19 @@ def checkin_chart(
     text_color = "black" if green else ""
     for column, chart in enumerate(data):
         yLabel = chart.name
+
+        football_challengers = [
+            "Ben",
+            "James",
+            "Alex",
+            "Julia",
+            "Wyatt",
+            "JR",
+            "Thomas",
+        ]
+        if yLabel in football_challengers:
+            yLabel += " 🏈"
+
         hasMulliganed = chart.hasMulliganed
         is_knocked_out = yLabel in knocked_out_names
         a = svgwrite.container.Hyperlink("/challenger/%s" % chart.name, target="_self")
