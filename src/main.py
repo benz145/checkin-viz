@@ -288,9 +288,10 @@ def add_checkin():
         select * from challenge_weeks 
         where 
             week_of_year = extract(week from %s at time zone 'America/New_York') and
-            extract(year from start) = extract(year from current_date)
+            (%s at time zone 'America/New_York')::DATE >= start and
+            (%s at time zone 'America/New_York')::DATE <= "end";
         """
-    challenge_week = fetchone(challenge_week_during_sql, [time])
+    challenge_week = fetchone(challenge_week_during_sql, (time, time, time))
     logging.debug(
         "Add checkin: %s",
         {
