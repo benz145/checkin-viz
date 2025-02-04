@@ -9,6 +9,12 @@
       property="og:image"
       content="{{og_path}}"
     />
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='cgf-fitness-icon.png') }}">
+    <link rel="mask-icon" href="{{ url_for('static', filename='safari-pinned-tab.svg') }}" color="#5bbad5">
+    <meta name="apple-mobile-web-app-title" content="Challenge Log">
+    <meta name="application-name" content="Challenge Log">
+    <meta name="msapplication-TileColor" content="#da532c">
+    <meta name="theme-color" content="#ffffff">
     <script type="text/javascript">
       window.onload = function() {
         challengeWeeks = [...document.querySelectorAll('.challenge_week')]
