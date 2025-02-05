@@ -9,6 +9,8 @@
       property="og:image"
       content="{{og_path}}"
     />
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='cgf-fitness-icon.png') }}">
+  <meta name="apple-mobile-web-app-title" content="Challenge Log">
     <script type="text/javascript">
       window.onload = function() {
         challengeWeeks = [...document.querySelectorAll('.challenge_week')]
