@@ -7,12 +7,13 @@ RUN apt-get update -y
 RUN apt-get install -y libcairo2
 RUN pip install poetry
 
+COPY README.md ./
 COPY poetry.lock ./
 COPY pyproject.toml ./
-
-RUN poetry install --no-interaction --no-ansi
-
 COPY scripts/entrypoint /
 COPY src /src
 COPY src/static/*.css /src/static/
+
+RUN poetry install --no-interaction --no-ansi
+
 ENTRYPOINT [ "poetry", "run", "./entrypoint" ]
