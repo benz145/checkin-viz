@@ -414,7 +414,7 @@ def mail():
 def sms():
     body = request.form
     phone_number = body.get("From")
-    message = body.get("Body")
+    message = body.get("Body").replace("\n", " ")
     logging.info("SMS: %s %s", phone_number, message)
 
     if not is_checkin(message):
