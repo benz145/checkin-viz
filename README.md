@@ -34,6 +34,7 @@ you'll be able to decrypt using the decrypt script.
 - Push the new public key file to github
 - Ask a maintainer to update the encrypted file with your key
 - Fetch the updated `.env.sops` file
+- Install [sops](https://github.com/getsops/sops)
 - Run `./scripts/decrypt`
   - For this to work you'll have to make sure the `key.txt` you generated is in the right place. The [sops docs explain this](https://github.com/getsops/sops?tab=readme-ov-file#23encrypting-using-age). But realistically it means either:
     - On Windows: `%AppData%\sops\age\keys.txt`
