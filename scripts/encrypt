@@ -1,3 +1,4 @@
 #! /bin/bash
 
-cat age-keys.txt | xargs -I {} sops --encrypt --age {} .env > .env.sops
+export SOPS_AGE_RECIPIENTS=$(cat age-keys.txt)
+sops --encrypt .env > .env.sops
