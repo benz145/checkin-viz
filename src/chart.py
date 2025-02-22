@@ -137,7 +137,7 @@ def checkin_chart(
     for column, chart in enumerate(data):
         yLabel = chart.name
 
-        football_challengers = [
+        tempIcon_challengers = [
             "Ben",
             "James",
             "Alex",
@@ -146,8 +146,8 @@ def checkin_chart(
             "JR",
             "Thomas",
         ]
-        if yLabel in football_challengers:
-            yLabel += " 🏈"
+        # if yLabel in tempIcon_challengers:
+        #    yLabel += " 🏈"
 
         hasMulliganed = chart.hasMulliganed
         is_knocked_out = yLabel in knocked_out_names
