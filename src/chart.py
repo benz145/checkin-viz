@@ -57,13 +57,13 @@ def knocked_out(challenge_id):
 
 def get_challenger_info(challenge_id):
     return fetchall(
-            """
+        """
         SELECT name, cc.tag FROM challengers c
         JOIN challenger_challenges cc ON c.id = cc.challenger_id
         WHERE cc.challenge_id = %s
         """,
-            [challenge_id],
-        )
+        [challenge_id],
+    )
 
 
 def mulliganed_challengers(challenge_id):
@@ -136,7 +136,7 @@ def checkin_chart(
         yLabel = chart.name
 
         if chart.tag:
-           yLabel += " " + chart.tag
+            yLabel += " " + chart.tag
 
         hasMulliganed = chart.hasMulliganed
         is_knocked_out = yLabel in knocked_out_names
@@ -478,7 +478,7 @@ def week_heat_map_from_checkins(checkins, challenge_id, rule_set):
                 total_checkins,
                 sum(sorted(point_checkins, reverse=True)[:5]),
                 name in mulliganed,
-                tags[name]
+                tags[name],
             )
         )
     return heatmap_data, latest_date[0], (earliest, latest, first_to_five, highest_tier)
