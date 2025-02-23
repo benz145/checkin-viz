@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Challenge {challenge.name} Details{% endblock %}
+{% block head %}
+  {{ super() }}
+  <style>
+    form {
+      max-width: 500px;
+    }
+  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+{% endblock %}
+{% block body %}
+<content>
+  <h1>Challenge: {challenge.name}</h1>
+  <h2>Challengers</h2>
+  <ul>
+    {% for challenger in challenge.challengers %}
+      <li>{challenger.name}</li>
+    {% endfor %}
+  </ul>
+  <h2>Weeks</h2> 
+</content>
+{% endblock %}
