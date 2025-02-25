@@ -63,7 +63,7 @@ def get_current_challenge_week(tz="America/New_York"):
         select * from challenge_weeks 
         where 
             week_of_year = extract(week from current_timestamp at time zone %s) and
-            (current_date at time zone 'America/New_York')::date >= start and (current_date at time zone 'America/New_York')::date <= "end";
+            (current_timestamp at time zone 'America/New_York')::date >= start and (current_timestamp at time zone 'America/New_York')::date <= "end";
         """
     return fetchone(sql, [tz])
 
