@@ -23,7 +23,13 @@
       <h2><a href="/">CGF Fitness Challenge</a></h2>
       <nav>
         <ul>
-          <li><a href="/calc">Calculator</a></li>
+          <li>
+            {% if name %}
+              <a href="/calc?name={{name}}">Calculator</a>
+            {% else %}
+              <a href="/calc">Calculator</a>
+            {% endif %}
+          </li>
           {%block nav%}{%endblock%}
         </ul>
       </nav>
