@@ -102,10 +102,9 @@ form.addEventListener('submit', (event) => {
   }
 });
 
-// --- Dynamic update for "Go to <user> tier chart" link ---
 const challengerSelect = document.getElementById('challengers');
 const tierChartLink = document.getElementById('tier-chart-link');
-challengerSelect.addEventListener('change', function() {
+function setChallenger() {
   const selectedOption = challengerSelect.options[challengerSelect.selectedIndex];
   const selectedName = selectedOption.getAttribute('data-name');
   if (selectedName && tierChartLink) {
@@ -117,6 +116,8 @@ challengerSelect.addEventListener('change', function() {
     tierChartLink.textContent = "";
     tierChartLink.style.display = "none";
   }
-});
+}
+challengerSelect.addEventListener('change', setChallenger);
+window.addEventListener('load', setChallenger);
 </script>
 {% endblock %}
