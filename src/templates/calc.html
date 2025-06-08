@@ -8,6 +8,17 @@
     form {
       max-width: 500px;
     }
+    .select-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5em;
+    }
+    @media(min-width: 650px) {
+      .select-group {
+        flex-direction: row;
+        align-items: center;
+      }
+    }
   </style>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 {% endblock %}
@@ -15,16 +26,26 @@
 <content class="grid">
   <form class="grid gap">
     <label for="challengers">Name:</label>
-    <select id="challengers"  class="span2" name="challengers">
-      {% for challenger in challengers %}
-        <option 
-          value="{{ challenger.bmr }}"
-          {{'selected' if name == challenger.name}}
-        >
-          {{ challenger.name }}
-        </option>
-      {% endfor %}
-    </select>
+    <div class="select-group">
+      <select id="challengers" class="span2" name="challengers">
+        {% for challenger in challengers %}
+          <option 
+            value="{{ challenger.bmr }}"
+            data-name="{{ challenger.name }}"
+            {{'selected' if name == challenger.name}}
+          >
+            {{ challenger.name }}
+          </option>
+        {% endfor %}
+      </select>
+      <a
+        id="tier-chart-link"
+        href="{% if name %}/challenger/{{name}}{% else %}#{% endif %}"
+        {% if not name %}style="display:none"{% endif %}
+      >
+        {% if name %}Go to {{name}} tier chart{% endif %}
+      </a>
+    </div>
     <div></div>
     <label for="cals">Calories:</label>
     <input type="tel" class="span2" id="cals" name="cals" required>
@@ -85,6 +106,24 @@ form.addEventListener('submit', (event) => {
   if (maxTier === timeTier) {
     timetier.classList.add('bold');
   }
-})
+});
+
+const challengerSelect = document.getElementById('challengers');
+const tierChartLink = document.getElementById('tier-chart-link');
+function setChallenger() {
+  const selectedOption = challengerSelect.options[challengerSelect.selectedIndex];
+  const selectedName = selectedOption.getAttribute('data-name');
+  if (selectedName && tierChartLink) {
+    tierChartLink.href = "/challenger/" + encodeURIComponent(selectedName);
+    tierChartLink.textContent = "Go to " + selectedName + " tier chart";
+    tierChartLink.style.display = "";
+  } else if (tierChartLink) {
+    tierChartLink.href = "#";
+    tierChartLink.textContent = "";
+    tierChartLink.style.display = "none";
+  }
+}
+challengerSelect.addEventListener('change', setChallenger);
+window.addEventListener('load', setChallenger);
 </script>
 {% endblock %}
