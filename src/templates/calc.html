@@ -8,9 +8,16 @@
     form {
       max-width: 500px;
     }
-    .inline-link {
-      margin-left: 1em;
-      font-size: 0.95em;
+    .select-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5em;
+    }
+    @media(min-width: 650px) {
+      .select-group {
+        flex-direction: row;
+        align-items: center;
+      }
     }
   </style>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
