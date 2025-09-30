@@ -17,10 +17,10 @@ services:
     volumes:
       - ./src/static:/src/static
     image: git.tcrez.dev/tcrez/checkin-viz
-  huey:
+  bot:
     build:
       context: .
-      dockerfile: Dockerfile.huey
+      dockerfile: Dockerfile.bot
     platform: linux/amd64
     restart: unless-stopped
     network_mode: host
@@ -31,4 +31,4 @@ services:
       DB_PASSWORD: $DB_PASSWORD
       TWILIO_AUTH_TOKEN: $TWILIO_AUTH_TOKEN
       LOGLEVEL: $LOGLEVEL
-
+      DISCORD_TOKEN: $DISCORD_TOKEN
