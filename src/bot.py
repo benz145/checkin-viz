@@ -13,6 +13,7 @@ client = discord.Client(intents=intents)
 
 LOGLEVEL = os.environ.get("LOGLEVEL", "WARNING").upper()
 logging.basicConfig(level=LOGLEVEL)
+BOT_ID = os.environ.get("CHALLENGEBOT_ID")
 
 @client.event
 async def on_ready():
@@ -24,6 +25,12 @@ async def on_message(message):
         return
 
     print(message)
+    print(message.mentions)
+    mentioned = bot_mentioned(message.mentions)
+    if mentioned:
+        print(mentioned)
+        await handle_mention_messages(message)
+
 
     tier = get_tier(message.content)
 
@@ -36,6 +43,16 @@ async def on_message(message):
         await message.add_reaction('🔥')
 
     save_checkin(message.content, tier, message.author.id)
+
+def bot_mentioned(mentions):
+    return BOT_ID in [str(mention.id) for mention in mentions]
+
+async def handle_mention_messages(message):
+    challenge = get_current_challenge()
+    challenge_week = get_current_challenge_week()
+    if "this week's chart" in message.content:
+        await message.reply(file=discord.File(open(f'/src/static/preview-{challenge_week.id}.png', 'rb')))
+        
 
 def save_checkin(message, tier, discord_id):
     challenger = fetchone(
