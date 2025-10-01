@@ -44,6 +44,7 @@ async def on_message(message):
     save_checkin(message.content, tier, message.author.id)
 
 async def send_current_chart(message):
+    challenge_week = get_current_challenge_week()
     await message.send_response(file=discord.File(open(f'/src/static/preview-{challenge_week.id}.png', 'rb')))
         
 
