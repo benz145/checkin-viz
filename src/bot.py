@@ -6,52 +6,45 @@ from base_queries import *
 import os
 from utils import get_tier
 
-intents = discord.Intents.default()
-intents.message_content = True
-
-client = discord.Client(intents=intents)
-
 LOGLEVEL = os.environ.get("LOGLEVEL", "WARNING").upper()
 logging.basicConfig(level=LOGLEVEL)
 BOT_ID = os.environ.get("CHALLENGEBOT_ID")
 
-@client.event
+intents = discord.Intents.default()
+intents.message_content = True
+
+bot = discord.Bot(intents=intents)
+
+@bot.event
 async def on_ready():
-    print(f'We have logged in as {client.user}')
+    print(f"{bot.user} is ready and online!")
 
-@client.event
+@bot.slash_command(name="chart", description="Display the current chart")
+async def hello(ctx: discord.ApplicationContext):
+    await send_current_chart(ctx)
+
+
+@bot.event
 async def on_message(message):
-    if message.author == client.user:
+    logging.debug("DISCORD: %s", message)
+
+    if message.author == bot.user:
         return
-
-    print(message)
-    print(message.mentions)
-    mentioned = bot_mentioned(message.mentions)
-    if mentioned:
-        print(mentioned)
-        await handle_mention_messages(message)
-
 
     tier = get_tier(message.content)
 
     if tier == "unknown":
         return
 
-    print(tier)
+    logging.info("DISCORD: tier from message: %s", tier)
 
     if int(tier[1:]) > 10:
         await message.add_reaction('🔥')
 
     save_checkin(message.content, tier, message.author.id)
 
-def bot_mentioned(mentions):
-    return BOT_ID in [str(mention.id) for mention in mentions]
-
-async def handle_mention_messages(message):
-    challenge = get_current_challenge()
-    challenge_week = get_current_challenge_week()
-    if "this week's chart" in message.content:
-        await message.reply(file=discord.File(open(f'/src/static/preview-{challenge_week.id}.png', 'rb')))
+async def send_current_chart(message):
+    await message.send_response(file=discord.File(open(f'/src/static/preview-{challenge_week.id}.png', 'rb')))
         
 
 def save_checkin(message, tier, discord_id):
@@ -68,6 +61,4 @@ def save_checkin(message, tier, discord_id):
 
     logging.info("DISCORD: inserted checkin for %s", challenger)
 
-
-
-client.run(os.environ.get("DISCORD_TOKEN"))
+bot.run(os.getenv('DISCORD_TOKEN'))
