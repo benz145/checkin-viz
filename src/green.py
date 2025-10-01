@@ -19,19 +19,24 @@ def number_of_non_green_weeks_before_this_one(challenge_id):
 
 def determine_if_green():
     challenge_week = get_current_challenge_week()
-    num_non_green = number_of_non_green_weeks_before_this_one(
-        challenge_week.challenge_id
-    )
-    logging.info("there were %s weeks before this one that werent green", num_non_green)
-    green = random.randint(0, 100) < 20 * num_non_green
-    logging.debug("is is green %s", green)
-
-    def set_green(conn, cur):
-        cur.execute(
-            "update challenge_weeks set green = %s where id = %s",
-            [green, challenge_week.id],
-        )
-
     if challenge_week.green is None:
+        num_non_green = number_of_non_green_weeks_before_this_one(
+            challenge_week.challenge_id
+        )
+        logging.info(
+            "there were %s weeks before this one that werent green", num_non_green
+        )
+        green = random.randint(0, 100) < 20 * num_non_green
+        logging.debug("is is green %s", green)
+
+        def set_green(conn, cur):
+            cur.execute(
+                "update challenge_weeks set green = %s where id = %s",
+                [green, challenge_week.id],
+            )
+
         with_psycopg(set_green)
-    return green
+
+        return green
+
+    return challenge_week.green
