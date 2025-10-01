@@ -15,9 +15,11 @@ intents.message_content = True
 
 bot = discord.Bot(intents=intents)
 
+
 @bot.event
 async def on_ready():
     print(f"{bot.user} is ready and online!")
+
 
 @bot.slash_command(name="chart", description="Display the current chart")
 async def hello(ctx: discord.ApplicationContext):
@@ -39,14 +41,17 @@ async def on_message(message):
     logging.info("DISCORD: tier from message: %s", tier)
 
     if int(tier[1:]) > 10:
-        await message.add_reaction('🔥')
+        await message.add_reaction("🔥")
 
     save_checkin(message.content, tier, message.author.id)
 
+
 async def send_current_chart(message):
     challenge_week = get_current_challenge_week()
-    await message.send_response(file=discord.File(open(f'/src/static/preview-{challenge_week.id}.png', 'rb')))
-        
+    await message.send_response(
+        file=discord.File(open(f"/src/static/preview-{challenge_week.id}.png", "rb"))
+    )
+
 
 def save_checkin(message, tier, discord_id):
     challenger = fetchone(
@@ -62,4 +67,5 @@ def save_checkin(message, tier, discord_id):
 
     logging.info("DISCORD: inserted checkin for %s", challenger)
 
-bot.run(os.getenv('DISCORD_TOKEN'))
+
+bot.run(os.getenv("DISCORD_TOKEN"))
