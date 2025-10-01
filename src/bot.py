@@ -80,7 +80,8 @@ async def on_message(message):
 async def send_current_chart(message):
     challenge_week = get_current_challenge_week()
     await message.send_response(
-        file=discord.File(open(f"/src/static/preview-{challenge_week.id}.png", "rb"))
+        file=discord.File(open(f"/src/static/preview-{challenge_week.id}.png", "rb")),
+        ephemeral=True
     )
 
 
