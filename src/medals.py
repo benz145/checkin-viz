@@ -20,7 +20,7 @@ def get_medals_now(challenge_id, challenge_week_id):
 
 def update_medal_table(challenge_id, challenge_week_id):
     medals = get_medals_now(challenge_id, challenge_week_id)
-    logging.info("inserting medals %s", current)
+    logging.info("inserting medals %s", medals)
     insert_medals(medals, challenge_id)
 
 
