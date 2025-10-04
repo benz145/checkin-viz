@@ -492,7 +492,7 @@ SELECT
     tier,
     %(challenge_week_id)s AS challenge_week_id,
     time AS time,
-    'First to Green' AS medal_name,
+    'first_to_green' AS medal_name,
     '❇' AS medal_emoji
 FROM totals
 JOIN challengers c ON totals.challenger = c.id
