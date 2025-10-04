@@ -124,17 +124,18 @@ def reconcile_medals(new_medals, current_medals):
     ]
 
     latest_for_week_new = next(
-        m for m in new_medals if m.medal_name == "latest_for_week"
+        (m for m in new_medals if m.medal_name == "latest_for_week"), None
     )
     latest_for_week_old = next(
-        m for m in current_medals if m.medal_name == "latest_for_week"
+        (m for m in current_medals if m.medal_name == "latest_for_week"), None
     )
     medals.append(
         {
             **latest_for_week_new._asdict(),
             "steal": (
                 latest_for_week_old.checkin_id
-                if latest_for_week_new.checkin_id != latest_for_week_old.checkin_id
+                if latest_for_week_old is not None
+                and latest_for_week_new.checkin_id != latest_for_week_old.checkin_id
                 and latest_for_week_new.challenge_week_id
                 == latest_for_week_old.challenge_week_id
                 else None
@@ -143,17 +144,18 @@ def reconcile_medals(new_medals, current_medals):
     )
 
     earliest_for_week_new = next(
-        m for m in new_medals if m.medal_name == "earliest_for_week"
+        (m for m in new_medals if m.medal_name == "earliest_for_week"), None
     )
     earliest_for_week_old = next(
-        m for m in current_medals if m.medal_name == "earliest_for_week"
+        (m for m in current_medals if m.medal_name == "earliest_for_week"), None
     )
     medals.append(
         {
             **earliest_for_week_new._asdict(),
             "steal": (
                 earliest_for_week_old.checkin_id
-                if earliest_for_week_new.checkin_id != earliest_for_week_old.checkin_id
+                if earliest_for_week_old is not None
+                and earliest_for_week_new.checkin_id != earliest_for_week_old.checkin_id
                 and earliest_for_week_new.challenge_week_id
                 == earliest_for_week_old.challenge_week_id
                 else None
@@ -162,35 +164,37 @@ def reconcile_medals(new_medals, current_medals):
     )
 
     latest_for_challenge_new = next(
-        m for m in new_medals if m.medal_name == "latest_for_challenge"
+        (m for m in new_medals if m.medal_name == "latest_for_challenge"), None
     )
     latest_for_challenge_old = next(
-        m for m in current_medals if m.medal_name == "latest_for_challenge"
+        (m for m in current_medals if m.medal_name == "latest_for_challenge"), None
     )
     medals.append(
         {
             **latest_for_week_new._asdict(),
             "steal": (
                 latest_for_challenge_old.checkin_id
-                if latest_for_challenge_new.checkin_id
-                == latest_for_challenge_old.checkin_id
+                if latest_for_challenge_old is not None
+                and latest_for_challenge_new.checkin_id
+                != latest_for_challenge_old.checkin_id
                 else None
             ),
         }
     )
 
     earliest_for_challenge_new = next(
-        m for m in new_medals if m.medal_name == "earliest_for_challenge"
+        (m for m in new_medals if m.medal_name == "earliest_for_challenge"), None
     )
     earliest_for_challenge_old = next(
-        m for m in current_medals if m.medal_name == "earliest_for_challenge"
+        (m for m in current_medals if m.medal_name == "earliest_for_challenge"), None
     )
     medals.append(
         {
             **earliest_for_week_new._asdict(),
             "steal": (
                 earliest_for_challenge_old.checkin_id
-                if earliest_for_challenge_new.checkin_id
+                if earliest_for_challenge_old is not None
+                and earliest_for_challenge_new.checkin_id
                 != earliest_for_challenge_old.checkin_id
                 else None
             ),
@@ -198,17 +202,18 @@ def reconcile_medals(new_medals, current_medals):
     )
 
     highest_tier_for_week_new = next(
-        m for m in new_medals if m.medal_name == "highest_tier_week"
+        (m for m in new_medals if m.medal_name == "highest_tier_week"), None
     )
     highest_tier_for_week_old = next(
-        m for m in current_medals if m.medal_name == "highest_tier_week"
+        (m for m in current_medals if m.medal_name == "highest_tier_week"), None
     )
     medals.append(
         {
             **highest_tier_for_week_new._asdict(),
             "steal": (
                 highest_tier_for_week_old.checkin_id
-                if highest_tier_for_week_new.checkin_id
+                if highest_tier_for_week_old is not None
+                and highest_tier_for_week_new.checkin_id
                 != highest_tier_for_week_old.checkin_id
                 and highest_tier_for_week_new.challenge_week_id
                 == highest_tier_for_week_old.challenge_week_id
@@ -218,17 +223,18 @@ def reconcile_medals(new_medals, current_medals):
     )
 
     highest_tier_for_challenge_new = next(
-        m for m in new_medals if m.medal_name == "highest_tier_challenge"
+        (m for m in new_medals if m.medal_name == "highest_tier_challenge"), None
     )
     highest_tier_for_challenge_old = next(
-        m for m in current_medals if m.medal_name == "highest_tier_challenge"
+        (m for m in current_medals if m.medal_name == "highest_tier_challenge"), None
     )
     medals.append(
         {
             **highest_tier_for_challenge_new._asdict(),
             "steal": (
                 highest_tier_for_challenge_old.checkin_id
-                if highest_tier_for_challenge_new.checkin_id
+                if highest_tier_for_challenge_old is not None
+                and highest_tier_for_challenge_new.checkin_id
                 != highest_tier_for_challenge_old.checkin_id
                 else None
             ),
