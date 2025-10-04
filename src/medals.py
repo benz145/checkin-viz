@@ -90,7 +90,7 @@ def insert_medals(medals, challenge_id):
 insert into medals
     (challenger_id, medal, challenge_id, challenge_week_id, checkin_id, steal, emoji)
     values
-    (%(challenger_id)s, %(medal)s, %(challenge_id)s, %(challenge_week_id)s, %(checkin_id)s, %(steal)s, %(emoji)s)
+    (%(challenger_id)s, %(medal)s, %(challenge_id)s, %(challenge_week_id)s, %(checkin_id)s, %(steal)s, %(emoji)s) ON CONFLICT DO NOTHING
 """
 
     def insert_all_medals(conn, curr):
