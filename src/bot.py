@@ -7,6 +7,7 @@ from green import determine_if_green
 import os
 from utils import get_tier
 import random
+import medals
 
 LOGLEVEL = os.environ.get("LOGLEVEL", "WARNING").upper()
 logging.basicConfig(level=LOGLEVEL)
@@ -76,12 +77,16 @@ async def on_message(message):
 
     save_checkin(message.content, tier, message.author.id)
 
+    challenge_week = get_current_challenge_week()
+    challenge = get_current_challenge()
+    medals.update_medal_table(challenge.id, challenge_week.id)
+
 
 async def send_current_chart(message):
     challenge_week = get_current_challenge_week()
     await message.send_response(
         file=discord.File(open(f"/src/static/preview-{challenge_week.id}.png", "rb")),
-        ephemeral=True
+        ephemeral=True,
     )
 
 
