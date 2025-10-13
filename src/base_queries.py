@@ -69,9 +69,10 @@ def get_current_challenge_week(tz="America/New_York"):
 
 
 def get_current_challenge():
-    return fetchone(
-        'select * from challenges where start <= CURRENT_DATE and "end" >= CURRENT_DATE'
-    )
+    return fetchone("""
+        select * from challenges where 
+        (current_timestamp at time zone 'America/New_York')::date >= start and (current_timestamp at time zone 'America/New_York')::date <= "end";
+    """)
 
 
 def checkins_this_week(challenge_week_id):
