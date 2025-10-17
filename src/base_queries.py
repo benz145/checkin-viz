@@ -26,6 +26,10 @@ def challenge_data(challenge_id):
     return fetchone("select * from challenges where id = %s;", [challenge_id])
 
 
+def challenger_by_discord_id(discord_id):
+    return fetchone("select * from challengers where discord_id = %s", [discord_id])
+
+
 def total_ante(challenge_id, tier):
     return fetchone(
         "select sum(ante) from challenger_challenges where challenge_id = %s and tier = %s",
@@ -69,10 +73,12 @@ def get_current_challenge_week(tz="America/New_York"):
 
 
 def get_current_challenge():
-    return fetchone("""
+    return fetchone(
+        """
         select * from challenges where 
         (current_timestamp at time zone 'America/New_York')::date >= start and (current_timestamp at time zone 'America/New_York')::date <= "end";
-    """)
+    """
+    )
 
 
 def checkins_this_week(challenge_week_id):

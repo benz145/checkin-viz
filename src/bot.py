@@ -1,4 +1,5 @@
 import discord
+from discord.ui import Modal, Select, InputText, Button
 import re
 import logging
 from helpers import fetchall, fetchone, with_psycopg
@@ -8,6 +9,8 @@ import os
 from utils import get_tier
 import random
 import medals
+import slash_commands.quit as quit_slash
+import slash_commands.join as join_slash
 
 LOGLEVEL = os.environ.get("LOGLEVEL", "WARNING").upper()
 logging.basicConfig(level=LOGLEVEL)
@@ -56,6 +59,16 @@ async def green(ctx: discord.ApplicationContext):
                 image=random.choice(no_gifs), description="Not this week!"
             )
         )
+
+
+@bot.slash_command(name="quit", description="I can't handle the challenge.")
+async def quit_command(ctx: discord.ApplicationContext):
+    await ctx.respond("You sure?", view=quit_slash.Button())
+
+
+@bot.slash_command(name="join", description="I'm ready to win.")
+async def join_command(ctx: discord.ApplicationContext):
+    await ctx.respond("You ready to win?", view=join_slash.Button())
 
 
 @bot.event
