@@ -10,10 +10,10 @@ RUN pip install poetry
 COPY README.md ./
 COPY poetry.lock ./
 COPY pyproject.toml ./
-COPY scripts/entrypoint /
 COPY src /src
-COPY src/static/*.css /src/static/
 
 RUN poetry install --no-interaction --no-ansi
 
-ENTRYPOINT [ "poetry", "run", "python3", "/src/bot.py" ]
+WORKDIR /src
+
+ENTRYPOINT [ "poetry", "run", "python3", "bot.py" ]

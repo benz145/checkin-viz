@@ -20,6 +20,7 @@ flask-cors = "^4.0.1"
 twilio = "^9.2.3"
 huey = "^2.5.1"
 py-cord = "^2.6.1"
+simpleeval = "^1.0.3"
 
 
 [build-system]

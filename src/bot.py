@@ -11,6 +11,9 @@ import random
 import medals
 import slash_commands.quit as quit_slash
 import slash_commands.join as join_slash
+import slash_commands.calc
+from chart import checkin_chart, week_heat_map_from_checkins, write_og_image
+from rule_sets import calculate_total_score
 
 LOGLEVEL = os.environ.get("LOGLEVEL", "WARNING").upper()
 logging.basicConfig(level=LOGLEVEL)
@@ -29,6 +32,35 @@ async def on_ready():
 
 @bot.slash_command(name="chart", description="Display the current chart")
 async def get_chart(ctx: discord.ApplicationContext):
+    current_challenge = get_current_challenge()
+    selected_challenge_week = get_current_challenge_week()
+    checkins = checkins_this_week(selected_challenge_week.id)
+    total_points = calculate_total_score(current_challenge.id)
+    week, latest, achievements = week_heat_map_from_checkins(
+        checkins,
+        current_challenge.id,
+        current_challenge.rule_set,
+    )
+    week = sorted(
+        week, key=lambda x: -total_points[x.name] if x.name in total_points else 0
+    )
+    total_checkins = {x[1]: x[0] for x in points_so_far(current_challenge.id)}
+    logging.info("TOTAL CHECKINS %s", total_checkins)
+    logging.debug("WEEK: %s, LATEST: %s", week, latest)
+    chart = checkin_chart(
+        week,
+        1000,
+        600,
+        current_challenge.id,
+        selected_challenge_week.green,
+        selected_challenge_week.bye_week,
+        total_points,
+        achievements,
+        total_checkins,
+        total_possible_checkins(current_challenge.id)[0],
+        total_possible_checkins_so_far(current_challenge.id, selected_challenge_week.id),
+    )
+    write_og_image(chart, selected_challenge_week.id)
     await send_current_chart(ctx)
 
 
@@ -69,6 +101,10 @@ async def quit_command(ctx: discord.ApplicationContext):
 @bot.slash_command(name="join", description="I'm ready to win.")
 async def join_command(ctx: discord.ApplicationContext):
     await ctx.respond("You ready to win?", view=join_slash.Button())
+
+@bot.slash_command(name="calculate_tier", description="Calculate the tier for your checkin")
+async def calc_command(ctx: discord.ApplicationContext):
+    await ctx.send_modal(slash_commands.calc.Modal(title="Enter Checkin Details"))
 
 
 @bot.event
