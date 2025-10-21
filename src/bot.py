@@ -14,6 +14,7 @@ import slash_commands.join as join_slash
 import slash_commands.calc
 from chart import checkin_chart, week_heat_map_from_checkins, write_og_image
 from rule_sets import calculate_total_score
+import medal_log
 
 LOGLEVEL = os.environ.get("LOGLEVEL", "WARNING").upper()
 logging.basicConfig(level=LOGLEVEL)
@@ -23,6 +24,16 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 bot = discord.Bot(intents=intents)
+
+nice_medal_names = {
+    "earliest_for_week": "earliest checkin this week",
+    "first_to_green": "first to green",
+    "gold": "gold",
+    "green": "green",
+    "highest_tier_challenge": "highest tier for the challenge",
+    "highest_tier_week": "highest tier this week",
+    "latest_for_week": "latest checkin this week",
+}
 
 
 @bot.event
@@ -58,7 +69,9 @@ async def get_chart(ctx: discord.ApplicationContext):
         achievements,
         total_checkins,
         total_possible_checkins(current_challenge.id)[0],
-        total_possible_checkins_so_far(current_challenge.id, selected_challenge_week.id),
+        total_possible_checkins_so_far(
+            current_challenge.id, selected_challenge_week.id
+        ),
     )
     write_og_image(chart, selected_challenge_week.id)
     await send_current_chart(ctx)
@@ -102,7 +115,10 @@ async def quit_command(ctx: discord.ApplicationContext):
 async def join_command(ctx: discord.ApplicationContext):
     await ctx.respond("You ready to win?", view=join_slash.Button())
 
-@bot.slash_command(name="calculate_tier", description="Calculate the tier for your checkin")
+
+@bot.slash_command(
+    name="calculate_tier", description="Calculate the tier for your checkin"
+)
 async def calc_command(ctx: discord.ApplicationContext):
     await ctx.send_modal(slash_commands.calc.Modal(title="Enter Checkin Details"))
 
@@ -124,11 +140,26 @@ async def on_message(message):
     if int(tier[1:]) > 10:
         await message.add_reaction("🔥")
 
-    save_checkin(message.content, tier, message.author.id)
+    checkin_id = save_checkin(message.content, tier, message.author.id)
 
     challenge_week = get_current_challenge_week()
     challenge = get_current_challenge()
     medals.update_medal_table(challenge.id, challenge_week.id)
+    log = medal_log.get_medal_log(challenge_week.id)
+    logging.info("DISCORD: medal log %s", log)
+
+    relevant_medals = [medal for medal in log if medal.checkin_id == checkin_id]
+    if relevant_medals:
+        logging.info("DISCORD: medals for checkin %s", relevant_medals)
+        medal_message = ""
+        for medal in relevant_medals:
+            await message.add_reaction(medal.medal_emoji)
+            if medal.stolen_checkin_challenger_name:
+                medal_message += f"\n\n <@{medal.discord_id}> stole {nice_medal_names[medal.medal_name]}({medal.medal_emoji}) from <@{medal.stolen_discord_id}>!"
+            else:
+                medal_message += f"\n\n <@{medal.discord_id}> got {nice_medal_names[medal.medal_name]}({medal.medal_emoji})!"
+        logging.info("DISCORD: %s", medal_message)
+        await message.reply(medal_message)
 
 
 async def send_current_chart(message):
@@ -149,9 +180,11 @@ def save_checkin(message, tier, discord_id):
     logging.info("DISCORD: challenger %s", challenger)
     logging.info("DISCORD: challenge week %s", challenge_week.id)
 
-    with_psycopg(insert_checkin(message, tier, challenger, challenge_week.id))
+    id = with_psycopg(insert_checkin(message, tier, challenger, challenge_week.id))
 
-    logging.info("DISCORD: inserted checkin for %s", challenger)
+    logging.info("DISCORD: inserted checkin id: %s for %s", id, challenger)
+
+    return id
 
 
 bot.run(os.getenv("DISCORD_TOKEN"))
