@@ -2,3 +2,16 @@ __pycache__
 src/static/preview-*
 .env
 .env.fish
+
+# Local development and testing files
+TROUBLESHOOTING.md
+DISCORD_BOT_TESTING.md
+HOW_TO_TEST_DISCORD.md
+QUICK_START.md
+SETUP.md
+diagnose_bot.py
+test_bot_outgoing.py
+test_discord_message.py
+test_discord_setup.py
+run_local.sh
+src/huey.db
