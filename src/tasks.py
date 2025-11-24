@@ -315,11 +315,14 @@ def collect_highest_tier_challenge_with_details(medal_records):
     return d
 
 def render_achievement_line(emote, label, discord_dict):
-    """Render an achievement line with mentions and counts."""
+    """Render an achievement line with mentions and counts.
+    Users with higher counts are listed first.
+    """
     if not discord_dict:
         return ""
     tags = []
-    for discord_id, count in sorted(discord_dict.items()):
+    # Sort by count in descending order (highest count first)
+    for discord_id, count in sorted(discord_dict.items(), key=lambda x: -x[1]):
         tag = format_discord_mention(discord_id)
         if count > 1:
             tag += f" (x{count})"
