@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, date
 import json
 from flask import Flask, render_template, request, url_for, redirect
 import logging
+from dotenv import load_dotenv
 from rule_sets import calculate_total_score
 from chart import checkin_chart, week_heat_map_from_checkins, write_og_image
 import hashlib
@@ -16,6 +17,9 @@ import pytz
 from twilio_decorator import twilio_request
 from cache_decorator import last_modified
 from green import determine_if_green
+
+# Load environment variables from .env file
+load_dotenv()
 
 LOGLEVEL = os.environ.get("LOGLEVEL", "WARNING").upper()
 logging.basicConfig(level="DEBUG")
