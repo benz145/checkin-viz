@@ -1,6 +1,13 @@
 from helpers import *
 import logging
 
+# Podium emoji constants
+PODIUM_EMOJIS = {
+    "first_place": ":first_place:",
+    "second_place": ":second_place:",
+    "third_place": ":third_place:",
+}
+
 # all medal queries return
 # name, tier, checkin_id, challenge_week_id, time, medal_name, medal_emoji
 # they can be composed with the medals function
@@ -493,7 +500,7 @@ SELECT
     %(challenge_week_id)s AS challenge_week_id,
     time AS time,
     'first_to_green' AS medal_name,
-    '❇' AS medal_emoji
+    ':eight_spoked_asterisk:' AS medal_emoji
 FROM totals
 JOIN challengers c ON totals.challenger = c.id
 WHERE checkin_count >= 5

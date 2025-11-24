@@ -317,6 +317,7 @@ def collect_highest_tier_challenge_with_details(medal_records):
 def render_achievement_line(emote, label, discord_dict):
     """Render an achievement line with mentions and counts.
     Users with higher counts are listed first.
+    Format: blockquote with h3 header.
     """
     if not discord_dict:
         return ""
@@ -327,10 +328,12 @@ def render_achievement_line(emote, label, discord_dict):
         if count > 1:
             tag += f" (x{count})"
         tags.append(tag)
-    return f"{emote} **{label}:** {', '.join(tags)}"
+    return f"> ### {emote} **{label}:** \n> {', '.join(tags)}"
 
 def render_highest_tier_challenge_line(emote, label, tier_week_dict):
-    """Render highest tier challenge line with tier and week information."""
+    """Render highest tier challenge line with tier and week information.
+    Format: blockquote with h3 header.
+    """
     if not tier_week_dict:
         return ""
     tags = []
@@ -338,24 +341,35 @@ def render_highest_tier_challenge_line(emote, label, tier_week_dict):
         tag = format_discord_mention(discord_id)
         tag += f" ({tier}, week {week_num})"
         tags.append(tag)
-    return f"{emote} **{label}:** {', '.join(tags)}"
+    return f"> ### {emote} **{label}:** \n> {', '.join(tags)}"
 
 def compose_results_message(challenge, podium, achievements):
     """Compose the final results message."""
-    msg = f"# {challenge.name} Results! 🏁\n\n"
-    msg += "### Podium\n\n"
-    places = ["🥇 **1st Place:**", "🥈 **2nd Place:**", "🥉 **3rd Place:**"]
-    for idx, person in enumerate(podium):
-        if idx >= len(places):
-            break
-        # Format points to show one decimal place if needed
-        points_str = f"{person['points']:.1f}" if person['points'] % 1 != 0 else f"{int(person['points'])}"
-        msg += f"{places[idx]} {format_discord_mention(person['discord_id'])} with {points_str} points\n"
-    msg += "\n### Achievements\n\n"
+    msg = f"# {challenge.name} Results! :checkered_flag:\n\n"
+    
+    # Podium places - using emojis from medals module
+    places_config = [
+        (PODIUM_EMOJIS["first_place"], "1st Place:", 0),
+        (PODIUM_EMOJIS["second_place"], "2nd Place:", 1),
+        (PODIUM_EMOJIS["third_place"], "3rd Place:", 2),
+    ]
+    
+    for emoji, label, idx in places_config:
+        if idx < len(podium):
+            person = podium[idx]
+            points_str = f"{person['points']:.1f}" if person['points'] % 1 != 0 else f"{int(person['points'])}"
+            msg += f"## {emoji} **{label}** {format_discord_mention(person['discord_id'])} with {points_str} points\n"
+    
+    msg += "\n\n## Achievements\n\n"
     for line in achievements:
-        if line:
-            msg += f"{line}\n\n"
-    msg += "@everyone"
+        if line is None:
+            # Blank line between groups - add a newline
+            msg += "\n"
+        elif line:
+            # Achievement line (already has header and content with newline between them)
+            # Add a newline after the achievement to separate from next item
+            msg += f"{line}\n"
+    msg += "\n@everyone"
     return msg
 
 def gather_achievements(challenge_id):
@@ -390,45 +404,50 @@ def gather_achievements(challenge_id):
                    if points >= 50 and name in name_to_discord_id]
     
     if club_60_ids:
-        lines.append(f"🌟 **Club 60:** {', '.join(format_discord_mention(i) for i in club_60_ids)}")
+        lines.append(f"> ### 🌟 **Club 60:** \n> {', '.join(format_discord_mention(i) for i in club_60_ids)}")
     if club_50_ids:
-        lines.append(f"⭐ **Club 50:** {', '.join(format_discord_mention(i) for i in club_50_ids)}")
+        lines.append(f"> ### ⭐ **Club 50:** \n> {', '.join(format_discord_mention(i) for i in club_50_ids)}")
     
-    # Highest Overall Tier (challenge-wide, only one winner)
-    # Special handling to include tier information
+    # Group 1: Tier achievements
     highest_tier_challenge_details = collect_highest_tier_challenge_with_details(final_challenge_medals)
     if highest_tier_challenge_details:
-        lines.append(render_highest_tier_challenge_line("🏋️", "Highest Overall Tier", highest_tier_challenge_details))
+        lines.append(render_highest_tier_challenge_line(":person_lifting_weights:", "Highest Overall Tier", highest_tier_challenge_details))
     
-    # Highest Weekly Tier (can be multiple, one per week)
     highest_tier_week = collect_achievement_tags_multiple(final_week_medals, "highest_tier_week")
     if highest_tier_week:
-        lines.append(render_achievement_line("💪", "Highest Weekly Tier", highest_tier_week))
+        lines.append(render_achievement_line(":muscle:", "Highest Weekly Tier", highest_tier_week))
     
-    # Gold Week (can be multiple, one per week)
+    # Group 2: Medal achievements
     gold_week = collect_achievement_tags_multiple(final_week_medals, "gold")
-    if gold_week:
-        lines.append(render_achievement_line("🏅", "Gold Week", gold_week))
-    
-    # First to Green (can be multiple, one per week)
     first_to_green = collect_achievement_tags_multiple(final_week_medals, "first_to_green")
-    if first_to_green:
-        lines.append(render_achievement_line("❇", "First to Green", first_to_green))
-    
-    # Green Week (can be multiple, one per week)
     green_week = collect_achievement_tags_multiple(final_week_medals, "green")
+    
+    # Add blank line between groups if both exist
+    if (highest_tier_challenge_details or highest_tier_week) and (gold_week or first_to_green or green_week):
+        lines.append(None)  # Marker for blank line
+    
+    if gold_week:
+        lines.append(render_achievement_line(":medal:", "Gold Week", gold_week))
+    
+    if first_to_green:
+        lines.append(render_achievement_line(":eight_spoked_asterisk:", "First to Green", first_to_green))
+    
     if green_week:
-        lines.append(render_achievement_line("🟩", "Green Week", green_week))
+        lines.append(render_achievement_line(":green_square:", "Green Week", green_week))
     
-    # Earliest Check-in (can be multiple, one per week)
+    # Group 3: Check-in achievements
     earliest = collect_achievement_tags_multiple(final_week_medals, "earliest_for_week")
-    if earliest:
-        lines.append(render_achievement_line("🌞", "Earliest Check-in", earliest))
-    
-    # Latest Check-in (can be multiple, one per week)
     latest = collect_achievement_tags_multiple(final_week_medals, "latest_for_week")
+    
+    # Add blank line between groups if both exist
+    if (gold_week or first_to_green or green_week) and (earliest or latest):
+        lines.append(None)  # Marker for blank line
+    
+    if earliest:
+        lines.append(render_achievement_line(":sun_with_face:", "Earliest Check-in", earliest))
+    
     if latest:
-        lines.append(render_achievement_line("🌚", "Latest Check-in", latest))
+        lines.append(render_achievement_line(":new_moon_with_face:", "Latest Check-in", latest))
     
     return lines
 
