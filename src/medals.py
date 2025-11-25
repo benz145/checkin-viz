@@ -42,6 +42,8 @@ def all_medals(challenge_id, challenge_week_id):
         highest_tier_challenge(challenge_id),
         earliest_for_challenge(challenge_id),
         latest_for_challenge(challenge_id),
+        all_gold_challenge(challenge_id),
+        all_green_challenge(challenge_id),
     )
 
 
@@ -122,12 +124,11 @@ insert into medals
 
 def reconcile_medals(new_medals, current_medals):
     # green, gold, and first to green cannot be stolen
+    non_stealable = {"green", "gold", "first_to_green", "all_gold", "all_green"}
     medals = [
         {**m._asdict(), "steal": None}
         for m in new_medals
-        if m.medal_name == "green"
-        or m.medal_name == "gold"
-        or m.medal_name == "first_to_green"
+        if m.medal_name in non_stealable
     ]
 
     latest_for_week_new = next(
@@ -511,3 +512,165 @@ LIMIT 1
     if execute:
         return fetchall(sql, {"challenge_week_id": challenge_week_id})
     return (sql, {"challenge_week_id": challenge_week_id})
+
+
+def all_gold_challenge(challenge_id, execute=False):
+    sql = """
+WITH non_bye_weeks AS (
+    SELECT id
+    FROM challenge_weeks
+    WHERE challenge_id = %(challenge_id)s
+      AND (bye_week != true OR bye_week IS NULL)
+),
+required_weeks AS (
+    SELECT COUNT(*) AS total_weeks FROM non_bye_weeks
+),
+daily_checkins AS (
+    SELECT
+        cw.id AS challenge_week_id,
+        ci.challenger,
+        DATE(ci.time AT TIME ZONE ci.tz) AS checkin_date,
+        MAX(ci.time AT TIME ZONE ci.tz) AS latest_checkin_time,
+        (ARRAY_AGG(ci.id ORDER BY ci.time AT TIME ZONE ci.tz DESC))[1] AS latest_checkin_id,
+        (ARRAY_AGG(ci.tier ORDER BY ci.time AT TIME ZONE ci.tz DESC))[1] AS latest_tier
+    FROM checkins ci
+    JOIN challenge_weeks cw ON ci.challenge_week_id = cw.id
+    JOIN non_bye_weeks nbw ON nbw.id = cw.id
+    GROUP BY cw.id, ci.challenger, DATE(ci.time AT TIME ZONE ci.tz)
+),
+totals AS (
+    SELECT
+        challenge_week_id,
+        challenger,
+        latest_checkin_time AS time,
+        ROW_NUMBER() OVER (
+            PARTITION BY challenge_week_id, challenger
+            ORDER BY checkin_date
+        ) AS checkin_count,
+        latest_checkin_id AS checkin_id,
+        latest_tier AS tier
+    FROM daily_checkins
+),
+gold_weeks AS (
+    SELECT *
+    FROM totals
+    WHERE checkin_count = 7
+),
+challenger_gold_counts AS (
+    SELECT
+        challenger,
+        COUNT(DISTINCT challenge_week_id) AS weeks_with_gold
+    FROM gold_weeks
+    GROUP BY challenger
+),
+gold_with_counts AS (
+    SELECT
+        gw.*,
+        cgc.weeks_with_gold,
+        ROW_NUMBER() OVER (
+            PARTITION BY gw.challenger
+            ORDER BY gw.challenge_week_id DESC, gw.time DESC
+        ) AS rn
+    FROM gold_weeks gw
+    JOIN challenger_gold_counts cgc ON gw.challenger = cgc.challenger
+)
+SELECT
+    c.name,
+    c.id AS challenger_id,
+    gw.tier,
+    gw.checkin_id,
+    gw.challenge_week_id,
+    gw.time,
+    'all_gold' AS medal_name,
+    '⭐' AS medal_emoji
+FROM gold_with_counts gw
+JOIN challengers c ON c.id = gw.challenger
+JOIN required_weeks rw ON TRUE
+WHERE rw.total_weeks > 0
+  AND gw.weeks_with_gold = rw.total_weeks
+  AND gw.rn = 1
+"""
+    if execute:
+        return fetchall(sql, {"challenge_id": challenge_id})
+    return (sql, {"challenge_id": challenge_id})
+
+
+def all_green_challenge(challenge_id, execute=False):
+    sql = """
+WITH non_bye_weeks AS (
+    SELECT id
+    FROM challenge_weeks
+    WHERE challenge_id = %(challenge_id)s
+      AND (bye_week != true OR bye_week IS NULL)
+),
+required_weeks AS (
+    SELECT COUNT(*) AS total_weeks FROM non_bye_weeks
+),
+daily_checkins AS (
+    SELECT
+        cw.id AS challenge_week_id,
+        ci.challenger,
+        DATE(ci.time AT TIME ZONE ci.tz) AS checkin_date,
+        MAX(ci.time AT TIME ZONE ci.tz) AS latest_checkin_time,
+        (ARRAY_AGG(ci.id ORDER BY ci.time AT TIME ZONE ci.tz DESC))[1] AS latest_checkin_id,
+        (ARRAY_AGG(ci.tier ORDER BY ci.time AT TIME ZONE ci.tz DESC))[1] AS latest_tier
+    FROM checkins ci
+    JOIN challenge_weeks cw ON ci.challenge_week_id = cw.id
+    JOIN non_bye_weeks nbw ON nbw.id = cw.id
+    GROUP BY cw.id, ci.challenger, DATE(ci.time AT TIME ZONE ci.tz)
+),
+totals AS (
+    SELECT
+        challenge_week_id,
+        challenger,
+        latest_checkin_time AS time,
+        ROW_NUMBER() OVER (
+            PARTITION BY challenge_week_id, challenger
+            ORDER BY checkin_date
+        ) AS checkin_count,
+        latest_checkin_id AS checkin_id,
+        latest_tier AS tier
+    FROM daily_checkins
+),
+green_weeks AS (
+    SELECT *
+    FROM totals
+    WHERE checkin_count = 5
+),
+challenger_green_counts AS (
+    SELECT
+        challenger,
+        COUNT(DISTINCT challenge_week_id) AS weeks_with_green
+    FROM green_weeks
+    GROUP BY challenger
+),
+green_with_counts AS (
+    SELECT
+        gw.*,
+        cgc.weeks_with_green,
+        ROW_NUMBER() OVER (
+            PARTITION BY gw.challenger
+            ORDER BY gw.challenge_week_id DESC, gw.time DESC
+        ) AS rn
+    FROM green_weeks gw
+    JOIN challenger_green_counts cgc ON gw.challenger = cgc.challenger
+)
+SELECT
+    c.name,
+    c.id AS challenger_id,
+    gw.tier,
+    gw.checkin_id,
+    gw.challenge_week_id,
+    gw.time,
+    'all_green' AS medal_name,
+    '❇️' AS medal_emoji
+FROM green_with_counts gw
+JOIN challengers c ON c.id = gw.challenger
+JOIN required_weeks rw ON TRUE
+WHERE rw.total_weeks > 0
+  AND gw.weeks_with_green = rw.total_weeks
+  AND gw.rn = 1
+"""
+    if execute:
+        return fetchall(sql, {"challenge_id": challenge_id})
+    return (sql, {"challenge_id": challenge_id})
