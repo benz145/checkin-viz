@@ -39,25 +39,8 @@ from base_queries import (
 )
 import medals
 import medal_log
-
-# Copy medal name mapping and describe_medal function from bot.py
-nice_medal_names = {
-    "highest_tier_challenge": "Highest Overall Tier",
-    "highest_tier_week": "Highest Weekly Tier",
-    "gold": "Gold Week",
-    "all_gold": "All Gold",
-    "first_to_green": "First to Green",
-    "green": "Green Week",
-    "all_green": "All Green",
-    "earliest_for_week": "Earliest Weekly Check-in",
-    "latest_for_week": "Latest Weekly Check-in",
-}
-
-
-def describe_medal(medal_name):
-    """Describe a medal with a nice name (same as bot.py)"""
-    fallback = medal_name.replace("_", " ").replace("  ", " ").title()
-    return nice_medal_names.get(medal_name, fallback)
+from medals import nice_medal_names
+from bot import describe_medal
 
 
 def format_medal_message(medal):
