@@ -260,7 +260,13 @@ def get_final_medal_holders_challenge_wide(challenge_id):
         JOIN challenge_weeks cw ON m.challenge_week_id = cw.id
         WHERE cw.challenge_id = %s
         AND (cw.bye_week != true OR cw.bye_week IS NULL)
-        AND m.medal IN ('highest_tier_challenge', 'earliest_for_challenge', 'latest_for_challenge')
+        AND m.medal IN (
+            'highest_tier_challenge',
+            'earliest_for_challenge',
+            'latest_for_challenge',
+            'all_gold',
+            'all_green'
+        )
     ),
     numbered_weeks AS (
         SELECT 
@@ -421,10 +427,21 @@ def gather_achievements(challenge_id):
     gold_week = collect_achievement_tags_multiple(final_week_medals, "gold")
     first_to_green = collect_achievement_tags_multiple(final_week_medals, "first_to_green")
     green_week = collect_achievement_tags_multiple(final_week_medals, "green")
+    all_gold = collect_achievement_tags_multiple(final_challenge_medals, "all_gold")
+    all_green = collect_achievement_tags_multiple(final_challenge_medals, "all_green")
+    
+    medal_group_exists = gold_week or first_to_green or green_week or all_gold or all_green
+    tier_group_exists = highest_tier_challenge_details or highest_tier_week
     
     # Add blank line between groups if both exist
-    if (highest_tier_challenge_details or highest_tier_week) and (gold_week or first_to_green or green_week):
+    if tier_group_exists and medal_group_exists:
         lines.append(None)  # Marker for blank line
+
+    if all_gold:
+        lines.append(render_achievement_line(":star:", "All Gold", all_gold))
+    
+    if all_green:
+        lines.append(render_achievement_line("❇️", "All Green", all_green))
     
     if gold_week:
         lines.append(render_achievement_line(":medal:", "Gold Week", gold_week))
@@ -440,7 +457,7 @@ def gather_achievements(challenge_id):
     latest = collect_achievement_tags_multiple(final_week_medals, "latest_for_week")
     
     # Add blank line between groups if both exist
-    if (gold_week or first_to_green or green_week) and (earliest or latest):
+    if medal_group_exists and (earliest or latest):
         lines.append(None)  # Marker for blank line
     
     if earliest:
