@@ -43,6 +43,7 @@ import requests
 
 from base_queries import get_challenges, challenge_data, points_so_far
 from medals import *
+import medals as medals_module
 import medal_log
 from helpers import fetchone, fetchall
 from rule_sets import calculate_total_score
@@ -128,6 +129,14 @@ def generate_challenge_results_message(challenge):
     """
     if not challenge:
         return None
+    
+    # Ensure medals are up to date for all weeks in the challenge
+    # This is especially important for challenge-wide medals like earliest_for_challenge
+    # and latest_for_challenge which need to be calculated across all weeks
+    challenge_week_ids = get_all_challenge_week_ids(challenge.id)
+    logging.info(f"Updating medals for challenge {challenge.id} across {len(challenge_week_ids)} weeks")
+    for week_id in challenge_week_ids:
+        medals_module.update_medal_table(challenge.id, week_id)
     
     podium = get_podium(challenge.id)
     if not podium:
@@ -242,13 +251,37 @@ def get_final_medal_holders_per_week(challenge_id):
     """
     return fetchall(sql, [challenge_id, challenge_id])
 
-def get_final_medal_holders_challenge_wide(challenge_id):
+def get_final_medal_holders_challenge_wide(challenge_id, challenge_wide_medal_names=None):
     """
     Get final medal holders for challenge-wide medals.
     Returns only the person who held the medal at the end of the challenge.
     Includes tier and week information for highest_tier_challenge.
+    
+    Args:
+        challenge_id: The challenge ID
+        challenge_wide_medal_names: List of medal names that are challenge-wide.
+                                  If None, will dynamically determine from medal_metadata
+                                  by checking which medals have "source": "challenge" in gather_achievements.
     """
-    sql = """
+    # Dynamically determine challenge-wide medals if not provided
+    if challenge_wide_medal_names is None:
+        # Get all medals that are challenge-wide from medal_metadata
+        # Challenge-wide medals are those that take challenge_id as parameter in medals.py
+        # Based on all_medals() function: highest_tier_challenge, earliest_for_challenge, 
+        # latest_for_challenge, all_gold_challenge, all_green_challenge
+        challenge_wide_medal_names = [
+            'highest_tier_challenge',
+            'earliest_for_challenge',
+            'latest_for_challenge',
+            'all_gold',
+            'all_green'
+        ]
+    
+    # Build the IN clause with string literals (medal names are safe, come from our code)
+    # Using string literals avoids type casting issues with enum/smallint medal column
+    medal_list = ','.join([f"'{medal}'" for medal in challenge_wide_medal_names])
+    
+    sql = f"""
     WITH ranked_medals AS (
         SELECT
             m.*,
@@ -260,13 +293,7 @@ def get_final_medal_holders_challenge_wide(challenge_id):
         JOIN challenge_weeks cw ON m.challenge_week_id = cw.id
         WHERE cw.challenge_id = %s
         AND (cw.bye_week != true OR cw.bye_week IS NULL)
-        AND m.medal IN (
-            'highest_tier_challenge',
-            'earliest_for_challenge',
-            'latest_for_challenge',
-            'all_gold',
-            'all_green'
-        )
+        AND m.medal IN ({medal_list})
     ),
     numbered_weeks AS (
         SELECT 
@@ -295,7 +322,10 @@ def get_final_medal_holders_challenge_wide(challenge_id):
     LEFT JOIN numbered_weeks nw ON nw.id = rm.challenge_week_id
     WHERE rm.rn = 1;
     """
-    return fetchall(sql, [challenge_id, challenge_id])
+    # Build parameters: challenge_id (twice for numbered_weeks)
+    # Medal names are embedded as string literals in SQL, not parameters
+    params = [challenge_id, challenge_id]
+    return fetchall(sql, params)
 
 def collect_achievement_tags_multiple(medal_records, kind):
     """Collect achievement tags with counts for medals that can be earned multiple times.
@@ -349,6 +379,20 @@ def render_highest_tier_challenge_line(emote, label, tier_week_dict):
         tags.append(tag)
     return f"> ### {emote} **{label}:** \n> {', '.join(tags)}"
 
+def get_medal_sort_key(medal_name):
+    """Get sort key for a medal based on group and difficulty.
+    Returns (group, difficulty) tuple for sorting.
+    Groups are sorted A, B, C, D (alphabetically).
+    Within each group, medals are sorted by difficulty (ascending: 1, 2, 3, 4).
+    """
+    metadata = medal_metadata.get(medal_name)
+    if metadata:
+        # Return tuple for sorting: (group, difficulty)
+        # Groups are single letters, so alphabetical sort works
+        return (metadata["group"], metadata["difficulty"])
+    # If medal not in metadata, put it at the end
+    return ("Z", 999)
+
 def compose_results_message(challenge, podium, achievements):
     """Compose the final results message."""
     msg = f"# {challenge.name} Results! :checkered_flag:\n\n"
@@ -381,10 +425,71 @@ def compose_results_message(challenge, podium, achievements):
 def gather_achievements(challenge_id):
     """Gather all achievements for the entire challenge across all weeks.
     Only includes medals that were still held at the end of each week/challenge.
+    Medals are ordered by group (A, B, C, D) and difficulty (ascending: 1, 2, 3, 4).
+    
+    Automatically discovers medals from medal_metadata. New medals just need to be added to:
+    - medal_metadata in medals.py (for group/difficulty)
+    - nice_medal_names in medals.py (for display name)
+    - medal_emoji_map below (for emoji)
+    - medal_config_overrides below (only if special handling needed)
     """
+    # Medal emoji mapping (labels come from nice_medal_names)
+    # New medals need to be added here for their emoji
+    medal_emoji_map = {
+        "all_gold": ":star:",
+        "all_green": "❇️",
+        "highest_tier_challenge": ":person_lifting_weights:",
+        "highest_tier_week": ":muscle:",
+        "gold": ":medal:",
+        "green": ":green_square:",
+        "first_to_green": ":eight_spoked_asterisk:",
+        "earliest_for_challenge": ":sun_with_face:",
+        "latest_for_challenge": ":new_moon_with_face:",
+        "earliest_for_week": ":sun_with_face:",
+        "latest_for_week": ":new_moon_with_face:",
+    }
+    
+    # Automatically get all medals from medal_metadata that have emojis defined
+    # This ensures we only process medals that are fully configured
+    all_medal_names = [
+        medal_name for medal_name in medal_metadata.keys()
+        if medal_name in medal_emoji_map
+    ]
+    
+    # Default: infer challenge-wide from naming convention
+    # Medals with "_challenge" suffix or starting with "all_" are challenge-wide
+    def is_challenge_wide(medal_name):
+        return medal_name.endswith("_challenge") or medal_name.startswith("all_")
+    
+    # Medal configuration overrides - only for special cases
+    # Most medals use default render_achievement_line
+    medal_config_overrides = {
+        "highest_tier_challenge": {
+            "render_func": render_highest_tier_challenge_line,
+            "collect_func": collect_highest_tier_challenge_with_details
+        }
+    }
+    
+    # Build medal_config dynamically from all medals
+    medal_config = {}
+    for medal_name in all_medal_names:
+        source = "challenge" if is_challenge_wide(medal_name) else "week"
+        override = medal_config_overrides.get(medal_name, {})
+        medal_config[medal_name] = {
+            "source": source,
+            "render_func": override.get("render_func", render_achievement_line),
+            **{k: v for k, v in override.items() if k != "render_func"}
+        }
+    
+    # Dynamically determine challenge-wide medal names
+    challenge_wide_medal_names = [
+        medal_name for medal_name, config in medal_config.items()
+        if config["source"] == "challenge"
+    ]
+    
     # Get final medal holders (only those who held medals at end of week/challenge)
     final_week_medals = get_final_medal_holders_per_week(challenge_id)
-    final_challenge_medals = get_final_medal_holders_challenge_wide(challenge_id)
+    final_challenge_medals = get_final_medal_holders_challenge_wide(challenge_id, challenge_wide_medal_names)
     
     lines = []
     
@@ -404,67 +509,62 @@ def gather_achievements(challenge_id):
         )
         name_to_discord_id = {c.name: c.discord_id for c in challengers if c.discord_id}
     
-    club_60_ids = [name_to_discord_id[name] for name, points in total_points.items() 
-                   if points >= 60 and name in name_to_discord_id]
-    club_50_ids = [name_to_discord_id[name] for name, points in total_points.items() 
-                   if points >= 50 and name in name_to_discord_id]
-    
-    if club_60_ids:
+    if club_60_ids := [name_to_discord_id[name] for name, points in total_points.items() 
+                       if points >= 60 and name in name_to_discord_id]:
         lines.append(f"> ### 🌟 **Club 60:** \n> {', '.join(format_discord_mention(i) for i in club_60_ids)}")
-    if club_50_ids:
+    if club_50_ids := [name_to_discord_id[name] for name, points in total_points.items() 
+                       if points >= 50 and name in name_to_discord_id]:
         lines.append(f"> ### ⭐ **Club 50:** \n> {', '.join(format_discord_mention(i) for i in club_50_ids)}")
     
-    # Group 1: Tier achievements
-    highest_tier_challenge_details = collect_highest_tier_challenge_with_details(final_challenge_medals)
-    if highest_tier_challenge_details:
-        lines.append(render_highest_tier_challenge_line(":person_lifting_weights:", "Highest Overall Tier", highest_tier_challenge_details))
+    # Collect all medal data
+    medal_data = []
+    for medal_name, config in medal_config.items():
+        if config["source"] == "challenge":
+            if config.get("collect_func"):
+                # Special handling for highest_tier_challenge
+                data = config["collect_func"](final_challenge_medals)
+            else:
+                data = collect_achievement_tags_multiple(final_challenge_medals, medal_name)
+        else:  # week
+            data = collect_achievement_tags_multiple(final_week_medals, medal_name)
+        
+        if data:  # Only include medals that have data
+            medal_data.append({
+                "medal_name": medal_name,
+                "data": data,
+                "config": config
+            })
     
-    highest_tier_week = collect_achievement_tags_multiple(final_week_medals, "highest_tier_week")
-    if highest_tier_week:
-        lines.append(render_achievement_line(":muscle:", "Highest Weekly Tier", highest_tier_week))
+    # Sort medals by group and difficulty
+    medal_data.sort(key=lambda x: get_medal_sort_key(x["medal_name"]))
     
-    # Group 2: Medal achievements
-    gold_week = collect_achievement_tags_multiple(final_week_medals, "gold")
-    first_to_green = collect_achievement_tags_multiple(final_week_medals, "first_to_green")
-    green_week = collect_achievement_tags_multiple(final_week_medals, "green")
-    all_gold = collect_achievement_tags_multiple(final_challenge_medals, "all_gold")
-    all_green = collect_achievement_tags_multiple(final_challenge_medals, "all_green")
-    
-    medal_group_exists = gold_week or first_to_green or green_week or all_gold or all_green
-    tier_group_exists = highest_tier_challenge_details or highest_tier_week
-    
-    # Add blank line between groups if both exist
-    if tier_group_exists and medal_group_exists:
-        lines.append(None)  # Marker for blank line
-
-    if all_gold:
-        lines.append(render_achievement_line(":star:", "All Gold", all_gold))
-    
-    if all_green:
-        lines.append(render_achievement_line("❇️", "All Green", all_green))
-    
-    if gold_week:
-        lines.append(render_achievement_line(":medal:", "Gold Week", gold_week))
-    
-    if first_to_green:
-        lines.append(render_achievement_line(":eight_spoked_asterisk:", "First to Green", first_to_green))
-    
-    if green_week:
-        lines.append(render_achievement_line(":green_square:", "Green Week", green_week))
-    
-    # Group 3: Check-in achievements
-    earliest = collect_achievement_tags_multiple(final_week_medals, "earliest_for_week")
-    latest = collect_achievement_tags_multiple(final_week_medals, "latest_for_week")
-    
-    # Add blank line between groups if both exist
-    if medal_group_exists and (earliest or latest):
-        lines.append(None)  # Marker for blank line
-    
-    if earliest:
-        lines.append(render_achievement_line(":sun_with_face:", "Earliest Check-in", earliest))
-    
-    if latest:
-        lines.append(render_achievement_line(":new_moon_with_face:", "Latest Check-in", latest))
+    # Track current group to add blank lines between groups
+    current_group = None
+    for medal_info in medal_data:
+        medal_name = medal_info["medal_name"]
+        data = medal_info["data"]
+        config = medal_info["config"]
+        
+        # Get group for this medal
+        metadata = medal_metadata.get(medal_name)
+        medal_group = metadata["group"] if metadata else None
+        
+        # Add blank line between different groups
+        if current_group is not None and medal_group != current_group:
+            lines.append(None)  # Marker for blank line
+        
+        current_group = medal_group
+        
+        # Get emoji and label for this medal
+        emoji = medal_emoji_map.get(medal_name, "")
+        label = nice_medal_names.get(medal_name, medal_name.replace("_", " ").title())
+        
+        # Render the medal line
+        if config.get("collect_func"):
+            # Special handling for highest_tier_challenge
+            lines.append(config["render_func"](emoji, label, data))
+        else:
+            lines.append(config["render_func"](emoji, label, data))
     
     return lines
 

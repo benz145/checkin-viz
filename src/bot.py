@@ -25,22 +25,25 @@ intents.message_content = True
 
 bot = discord.Bot(intents=intents)
 
-nice_medal_names = {
-    "highest_tier_challenge": "Highest Overall Tier",
-    "highest_tier_week": "Highest Weekly Tier",
-    "gold": "Gold Week",
-    "all_gold": "All Gold",
-    "first_to_green": "First to Green",
-    "green": "Green Week",
-    "all_green": "All Green",
-    "earliest_for_week": "Earliest Weekly Check-in",
-    "latest_for_week": "Latest Weekly Check-in",
-}
+# Import medal metadata and names from medals module
+from medals import medal_metadata, nice_medal_names
 
 
 def describe_medal(medal_name):
     fallback = medal_name.replace("_", " ").replace("  ", " ").title()
     return nice_medal_names.get(medal_name, fallback)
+
+
+def get_medal_group(medal_name):
+    """Get the group (A-D) for a medal"""
+    metadata = medal_metadata.get(medal_name)
+    return metadata["group"] if metadata else None
+
+
+def get_medal_difficulty(medal_name):
+    """Get the difficulty (1-4) for a medal"""
+    metadata = medal_metadata.get(medal_name)
+    return metadata["difficulty"] if metadata else None
 
 
 @bot.event

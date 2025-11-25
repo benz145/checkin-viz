@@ -8,6 +8,36 @@ PODIUM_EMOJIS = {
     "third_place": "🥉",
 }
 
+# Medal metadata: group (A-D) and difficulty (1-4) for organizing and ordering medals
+medal_metadata = {
+    "all_gold": {"group": "A", "difficulty": 1},
+    "all_green": {"group": "A", "difficulty": 2},
+    "highest_tier_challenge": {"group": "B", "difficulty": 1},
+    "highest_tier_week": {"group": "B", "difficulty": 2},
+    "gold": {"group": "C", "difficulty": 1},
+    "green": {"group": "C", "difficulty": 2},
+    "first_to_green": {"group": "C", "difficulty": 3},
+    "earliest_for_challenge": {"group": "D", "difficulty": 1},
+    "latest_for_challenge": {"group": "D", "difficulty": 1},
+    "earliest_for_week": {"group": "D", "difficulty": 2},
+    "latest_for_week": {"group": "D", "difficulty": 2},
+}
+
+# Nice display names for medals
+nice_medal_names = {
+    "highest_tier_challenge": "Highest Overall Tier",
+    "highest_tier_week": "Highest Weekly Tier",
+    "gold": "Gold Week",
+    "all_gold": "All Gold",
+    "first_to_green": "First to Green",
+    "green": "Green Week",
+    "all_green": "All Green",
+    "earliest_for_week": "Earliest Weekly Check-in",
+    "latest_for_week": "Latest Weekly Check-in",
+    "earliest_for_challenge": "Earliest Overall Check-in",
+    "latest_for_challenge": "Latest Overall Check-in",
+}
+
 # all medal queries return
 # name, tier, checkin_id, challenge_week_id, time, medal_name, medal_emoji
 # they can be composed with the medals function
@@ -177,18 +207,19 @@ def reconcile_medals(new_medals, current_medals):
     latest_for_challenge_old = next(
         (m for m in current_medals if m.medal_name == "latest_for_challenge"), None
     )
-    medals.append(
-        {
-            **latest_for_week_new._asdict(),
-            "steal": (
-                latest_for_challenge_old.checkin_id
-                if latest_for_challenge_old is not None
-                and latest_for_challenge_new.checkin_id
-                != latest_for_challenge_old.checkin_id
-                else None
-            ),
-        }
-    )
+    if latest_for_challenge_new is not None:
+        medals.append(
+            {
+                **latest_for_challenge_new._asdict(),
+                "steal": (
+                    latest_for_challenge_old.checkin_id
+                    if latest_for_challenge_old is not None
+                    and latest_for_challenge_new.checkin_id
+                    != latest_for_challenge_old.checkin_id
+                    else None
+                ),
+            }
+        )
 
     earliest_for_challenge_new = next(
         (m for m in new_medals if m.medal_name == "earliest_for_challenge"), None
@@ -196,18 +227,19 @@ def reconcile_medals(new_medals, current_medals):
     earliest_for_challenge_old = next(
         (m for m in current_medals if m.medal_name == "earliest_for_challenge"), None
     )
-    medals.append(
-        {
-            **earliest_for_week_new._asdict(),
-            "steal": (
-                earliest_for_challenge_old.checkin_id
-                if earliest_for_challenge_old is not None
-                and earliest_for_challenge_new.checkin_id
-                != earliest_for_challenge_old.checkin_id
-                else None
-            ),
-        }
-    )
+    if earliest_for_challenge_new is not None:
+        medals.append(
+            {
+                **earliest_for_challenge_new._asdict(),
+                "steal": (
+                    earliest_for_challenge_old.checkin_id
+                    if earliest_for_challenge_old is not None
+                    and earliest_for_challenge_new.checkin_id
+                    != earliest_for_challenge_old.checkin_id
+                    else None
+                ),
+            }
+        )
 
     highest_tier_for_week_new = next(
         (m for m in new_medals if m.medal_name == "highest_tier_week"), None
