@@ -2,10 +2,6 @@ import psycopg
 from psycopg.rows import namedtuple_row
 import os
 import logging
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
 
 connection_string = os.environ["DB_CONNECT_STRING"]
 
