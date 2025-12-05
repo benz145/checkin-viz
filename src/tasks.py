@@ -3,22 +3,19 @@ from green import determine_if_green
 from mulligan import check_last_week_for_mulligan_necessity, insert_mulligan_for
 import logging
 
+# --- Existing tasks config ---
 logging.basicConfig(level="DEBUG")
-
 huey = SqliteHuey()
-
 
 @huey.task()
 def example_task(n):
     print("-- RUNNING EXAMPLE TASK: CALLED WITH n=%s --" % n)
     return n
 
-
 @huey.periodic_task(crontab(hour="8", day="1"))
 def is_green_week():
     print("Determining if green")
     determine_if_green()
-
 
 @huey.periodic_task(crontab(hour="8", day="1"))
 def check_mulligans():

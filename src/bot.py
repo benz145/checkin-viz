@@ -123,6 +123,30 @@ async def calc_command(ctx: discord.ApplicationContext):
     await ctx.send_modal(slash_commands.calc.Modal(title="Enter Checkin Details"))
 
 
+@bot.slash_command(name="testpodium", description="Test the podium results message for the most recently ended challenge")
+async def testpodium_command(ctx: discord.ApplicationContext):
+    """Send the results message for the most recently ended challenge."""
+    from slash_commands.testpodium import get_most_recently_ended_challenge, generate_challenge_results_message
+    
+    await ctx.defer()  # Acknowledge the command since this might take a moment
+    
+    challenge = get_most_recently_ended_challenge()
+    if not challenge:
+        await ctx.followup.send("No ended challenge found.")
+        return
+    
+    msg = generate_challenge_results_message(challenge)
+    if not msg:
+        await ctx.followup.send(f"Could not generate results for challenge: {challenge.name}")
+        return
+    
+    try:
+        await ctx.followup.send(msg)
+    except Exception as e:
+        logging.exception(f"Error sending testpodium message: {e}")
+        await ctx.followup.send(f"Error sending message: {str(e)}")
+
+
 @bot.event
 async def on_message(message):
     logging.debug("DISCORD: %s", message)
@@ -155,9 +179,9 @@ async def on_message(message):
         for medal in relevant_medals:
             await message.add_reaction(medal.medal_emoji)
             if medal.stolen_checkin_challenger_name:
-                medal_message += f"\n\n <@{medal.discord_id}> stole {nice_medal_names[medal.medal_name]}({medal.medal_emoji}) from <@{medal.stolen_discord_id}>!"
+                medal_message += f"\n\n <@{medal.discord_id}> stole {nice_medal_names[medal.medal_name]} {medal.medal_emoji} from <@{medal.stolen_discord_id}>!"
             else:
-                medal_message += f"\n\n <@{medal.discord_id}> got {nice_medal_names[medal.medal_name]}({medal.medal_emoji})!"
+                medal_message += f"\n\n <@{medal.discord_id}> got {nice_medal_names[medal.medal_name]} {medal.medal_emoji}!"
         logging.info("DISCORD: %s", medal_message)
         await message.reply(medal_message)
 
