@@ -17,9 +17,6 @@ from twilio_decorator import twilio_request
 from cache_decorator import last_modified
 from green import determine_if_green
 
-# Load environment variables from .env file
-load_dotenv()
-
 LOGLEVEL = os.environ.get("LOGLEVEL", "WARNING").upper()
 logging.basicConfig(level="DEBUG")
 
