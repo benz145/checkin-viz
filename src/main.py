@@ -6,7 +6,6 @@ from datetime import datetime, timedelta, date
 import json
 from flask import Flask, render_template, request, url_for, redirect
 import logging
-from dotenv import load_dotenv
 from rule_sets import calculate_total_score
 from chart import checkin_chart, week_heat_map_from_checkins, write_og_image
 import hashlib
