@@ -39,4 +39,5 @@ services:
     environment:
       - DATABASE_URL=postgres://postgres:password@postgres/projects?sslmode=disable
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
