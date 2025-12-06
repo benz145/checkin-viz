@@ -70,5 +70,6 @@ If you need to run the Discord bot against production data while limiting it to 
 
 - `BOT_DEVELOPER_MODE=true`
 - `BOT_DEVELOPER_CHANNEL_ID=<channel id to watch>`
+- `BOT_DEVELOPER_TRIGGER=$test$` (optional; defaults to `$test$`)
 
-When developer mode is enabled, the bot will ignore any messages that do not arrive in the specified channel.
+When developer mode is enabled, the bot will ignore any messages that do not arrive in the specified channel and will only treat a message as a check-in if it contains the trigger phrase (default `$test$`). To simulate a check-in, post something like ``$test$ T1`` in the sandbox channel; the bot will parse the tier from the rest of the message as usual.

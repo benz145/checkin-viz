@@ -28,6 +28,7 @@ def _env_truthy(value) -> bool:
 
 
 BOT_DEVELOPER_MODE = _env_truthy(os.environ.get("BOT_DEVELOPER_MODE", "false"))
+BOT_DEVELOPER_TRIGGER = os.environ.get("BOT_DEVELOPER_TRIGGER", "$test$")
 _developer_channel_raw = os.environ.get("BOT_DEVELOPER_CHANNEL_ID")
 BOT_DEVELOPER_CHANNEL_ID = None
 if _developer_channel_raw:
@@ -183,6 +184,13 @@ async def on_message(message):
         if channel_id != BOT_DEVELOPER_CHANNEL_ID:
             logging.debug(
                 "Skipping message from channel %s due to developer mode", channel_id
+            )
+            return
+        trigger = BOT_DEVELOPER_TRIGGER.lower()
+        content = (message.content or "").lower()
+        if trigger not in content:
+            logging.debug(
+                "Developer mode: ignoring message without trigger '%s'", trigger
             )
             return
 
