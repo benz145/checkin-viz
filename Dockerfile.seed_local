@@ -1,4 +1,4 @@
-FROM postgres:18
+FROM postgres:18-alpine
 
 COPY ./database/seed.sh .
 

@@ -1,7 +1,8 @@
-version: '3.8'
+name: checkin-viz
+
 services:
   postgres:
-    image: postgres:18
+    image: postgres:18-alpine
     hostname: localhost
     ports:
       - "5432:5432"
@@ -41,3 +42,36 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  # ### application setup ### #
+  # the bot and the app don't need to wait for the db
+  # although if you hit them right away you'll get an error
+  web:
+    build: 
+      context: .
+    platform: linux/amd64
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DB_CONNECT_STRING: postgres://postgres:password@postgres/projects
+      DB_USER: postgres
+      DB_HOST: postgres
+      DB_PASSWORD: password
+      TWILIO_AUTH_TOKEN: $TWILIO_AUTH_TOKEN
+      LOGLEVEL: DEBUG
+    volumes:
+      - ./src:/src
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      DB_CONNECT_STRING: postgres://postgres:password@postgres/projects
+      DB_USER: postgres
+      DB_HOST: postgres
+      DB_PASSWORD: password
+      DISCORD_TOKEN: $DISCORD_TOKEN
+      LOGLEVEL: DEBUG
