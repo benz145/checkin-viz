@@ -25,15 +25,25 @@ intents.message_content = True
 
 bot = discord.Bot(intents=intents)
 
-nice_medal_names = {
-    "earliest_for_week": "earliest checkin this week",
-    "first_to_green": "first to green",
-    "gold": "gold",
-    "green": "green",
-    "highest_tier_challenge": "highest tier for the challenge",
-    "highest_tier_week": "highest tier this week",
-    "latest_for_week": "latest checkin this week",
-}
+# Import medal metadata and names from medals module
+from medals import medal_metadata, nice_medal_names
+
+
+def describe_medal(medal_name):
+    fallback = medal_name.replace("_", " ").replace("  ", " ").title()
+    return nice_medal_names.get(medal_name, fallback)
+
+
+def get_medal_group(medal_name):
+    """Get the group (A-D) for a medal"""
+    metadata = medal_metadata.get(medal_name)
+    return metadata["group"] if metadata else None
+
+
+def get_medal_difficulty(medal_name):
+    """Get the difficulty (1-4) for a medal"""
+    metadata = medal_metadata.get(medal_name)
+    return metadata["difficulty"] if metadata else None
 
 
 @bot.event
@@ -178,10 +188,22 @@ async def on_message(message):
         medal_message = ""
         for medal in relevant_medals:
             await message.add_reaction(medal.medal_emoji)
+            nice_name = describe_medal(medal.medal_name)
+            emoji = medal.medal_emoji or ""
             if medal.stolen_checkin_challenger_name:
-                medal_message += f"\n\n <@{medal.discord_id}> stole {nice_medal_names[medal.medal_name]} {medal.medal_emoji} from <@{medal.stolen_discord_id}>!"
+                if medal.discord_id == medal.stolen_discord_id:
+                    medal_message += (
+                        f"\n\n<@{medal.discord_id}> still holds {emoji} {nice_name}, and has now surpassed it!"
+                    )
+                else:
+                    medal_message += (
+                        f"\n\n<@{medal.discord_id}> stole {emoji} {nice_name} "
+                        f"from <@{medal.stolen_discord_id}>!"
+                    )
             else:
-                medal_message += f"\n\n <@{medal.discord_id}> got {nice_medal_names[medal.medal_name]} {medal.medal_emoji}!"
+                medal_message += (
+                    f"\n\n<@{medal.discord_id}> earned {emoji} {nice_name}!"
+                )
         logging.info("DISCORD: %s", medal_message)
         await message.reply(medal_message)
 
