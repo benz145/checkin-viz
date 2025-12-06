@@ -1,0 +1,77 @@
+name: checkin-viz
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    hostname: localhost
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: projects
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d projects"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
+
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile.seed_local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      LOCAL_DB_CONNECT_STRING: postgres://postgres:password@postgres/projects
+      PROD_DB_CONNECT_STRING: $DB_CONNECT_STRING
+
+  pgweb:
+    container_name: pgweb
+    restart: always
+    image: sosedoff/pgweb
+    ports: 
+      - "8081:8081" 
+    links: 
+      - postgres:postgres
+    environment:
+      - DATABASE_URL=postgres://postgres:password@postgres/projects?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ### application setup ### #
+  # the bot and the app don't need to wait for the db
+  # although if you hit them right away you'll get an error
+  web:
+    build: 
+      context: .
+    platform: linux/amd64
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DB_CONNECT_STRING: postgres://postgres:password@postgres/projects
+      DB_USER: postgres
+      DB_HOST: postgres
+      DB_PASSWORD: password
+      TWILIO_AUTH_TOKEN: $TWILIO_AUTH_TOKEN
+      LOGLEVEL: DEBUG
+    volumes:
+      - ./src:/src
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      DB_CONNECT_STRING: postgres://postgres:password@postgres/projects
+      DB_USER: postgres
+      DB_HOST: postgres
+      DB_PASSWORD: password
+      DISCORD_TOKEN: $DISCORD_TOKEN
+      LOGLEVEL: DEBUG

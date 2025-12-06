@@ -41,3 +41,25 @@ you'll be able to decrypt using the decrypt script.
     - On Mac: `$HOME/Library/Application Support/sops/age/keys.txt`
     - Manually: Set `SOPS_AGE_KEY_FILE=path/to/keys.txt`
 - After running the script there will now be a file `.env` which contains the decrypted variables. **Do not share this file, or the contents of it, with anyone.**
+
+## Local Development
+
+A specific docker compose file is provided to make local development easy. You still need to
+be able to decrypt the secrets as the local development db is seeded from production but
+the application itself will only connect to the local db. To run the local development setup
+simply use `docker compose -f docker-compose-local.yml up`. This will create:
+
+- A local development postgres db exposed at `:5432`
+  - username: postgres
+  - password: password
+- [pgweb](https://sosedoff.github.io/pgweb/), a simple to use postgres ui, which you can view at http://localhost:8081/
+- A dbseeder which seeds a complete challenge and the current challenge
+- The web ui which you can view at http://localhost:3000
+- The discord bot
+
+The bot and web source code is volumed so changes to the app just require you to restart the specific container:
+
+- Web: `docker container restart checkin-viz-web-1`
+- Bot: `docker container restart checkin-viz-bot-1`
+
+**NOTE**: When doing local development never test against the production db.
