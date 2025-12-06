@@ -20,6 +20,25 @@ LOGLEVEL = os.environ.get("LOGLEVEL", "WARNING").upper()
 logging.basicConfig(level=LOGLEVEL)
 BOT_ID = os.environ.get("CHALLENGEBOT_ID")
 
+
+def _env_truthy(value) -> bool:
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+BOT_DEVELOPER_MODE = _env_truthy(os.environ.get("BOT_DEVELOPER_MODE", "false"))
+_developer_channel_raw = os.environ.get("BOT_DEVELOPER_CHANNEL_ID")
+BOT_DEVELOPER_CHANNEL_ID = None
+if _developer_channel_raw:
+    try:
+        BOT_DEVELOPER_CHANNEL_ID = int(_developer_channel_raw)
+    except ValueError:
+        logging.warning(
+            "BOT_DEVELOPER_CHANNEL_ID=%s is not a valid integer channel id; ignoring",
+            _developer_channel_raw,
+        )
+
 intents = discord.Intents.default()
 intents.message_content = True
 
@@ -153,6 +172,19 @@ async def on_message(message):
 
     if message.author == bot.user:
         return
+
+    if BOT_DEVELOPER_MODE:
+        if BOT_DEVELOPER_CHANNEL_ID is None:
+            logging.warning(
+                "BOT_DEVELOPER_MODE enabled but BOT_DEVELOPER_CHANNEL_ID missing; ignoring message"
+            )
+            return
+        channel_id = getattr(message.channel, "id", None)
+        if channel_id != BOT_DEVELOPER_CHANNEL_ID:
+            logging.debug(
+                "Skipping message from channel %s due to developer mode", channel_id
+            )
+            return
 
     tier = get_tier(message.content)
 

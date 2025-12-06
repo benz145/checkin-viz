@@ -63,3 +63,12 @@ The bot and web source code is volumed so changes to the app just require you to
 - Bot: `docker container restart checkin-viz-bot-1`
 
 **NOTE**: When doing local development never test against the production db.
+
+### Discord bot developer mode
+
+If you need to run the Discord bot against production data while limiting it to a single sandbox channel, set the following environment variables (for example in `.env` so docker compose picks them up):
+
+- `BOT_DEVELOPER_MODE=true`
+- `BOT_DEVELOPER_CHANNEL_ID=<channel id to watch>`
+
+When developer mode is enabled, the bot will ignore any messages that do not arrive in the specified channel.
