@@ -1,0 +1,42 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:18
+    hostname: localhost
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: projects
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d projects"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
+
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile.seed_local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      LOCAL_DB_CONNECT_STRING: postgres://postgres:password@postgres/projects
+      PROD_DB_CONNECT_STRING: $DB_CONNECT_STRING
+
+  pgweb:
+    container_name: pgweb
+    restart: always
+    image: sosedoff/pgweb
+    ports: 
+      - "8081:8081" 
+    links: 
+      - postgres:postgres
+    environment:
+      - DATABASE_URL=postgres://postgres:password@postgres/projects?sslmode=disable
+    depends_on:
+      - postgres

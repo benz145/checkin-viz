@@ -1,0 +1,8 @@
+FROM postgres:18
+
+COPY ./database/seed.sh .
+
+RUN chmod +x seed.sh
+
+ENTRYPOINT ["./seed.sh"]
+
