@@ -16,9 +16,10 @@ from chart import checkin_chart, week_heat_map_from_checkins, write_og_image
 from rule_sets import calculate_total_score
 import medal_log
 
-LOGLEVEL = os.environ.get("LOGLEVEL", "WARNING").upper()
+LOGLEVEL = os.environ.get("LOGLEVEL", "DEBUG").upper()
 logging.basicConfig(level=LOGLEVEL)
 BOT_ID = os.environ.get("CHALLENGEBOT_ID")
+ALLOWED_MESSAGE_CHANNEL_ID = str(os.environ.get("ALLOWED_MESSAGE_CHANNEL_ID"))
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -133,23 +134,31 @@ async def calc_command(ctx: discord.ApplicationContext):
     await ctx.send_modal(slash_commands.calc.Modal(title="Enter Checkin Details"))
 
 
-@bot.slash_command(name="testpodium", description="Test the podium results message for the most recently ended challenge")
+@bot.slash_command(
+    name="testpodium",
+    description="Test the podium results message for the most recently ended challenge",
+)
 async def testpodium_command(ctx: discord.ApplicationContext):
     """Send the results message for the most recently ended challenge."""
-    from slash_commands.testpodium import get_most_recently_ended_challenge, generate_challenge_results_message
-    
+    from slash_commands.testpodium import (
+        get_most_recently_ended_challenge,
+        generate_challenge_results_message,
+    )
+
     await ctx.defer()  # Acknowledge the command since this might take a moment
-    
+
     challenge = get_most_recently_ended_challenge()
     if not challenge:
         await ctx.followup.send("No ended challenge found.")
         return
-    
+
     msg = generate_challenge_results_message(challenge)
     if not msg:
-        await ctx.followup.send(f"Could not generate results for challenge: {challenge.name}")
+        await ctx.followup.send(
+            f"Could not generate results for challenge: {challenge.name}"
+        )
         return
-    
+
     try:
         await ctx.followup.send(msg)
     except Exception as e:
@@ -159,7 +168,11 @@ async def testpodium_command(ctx: discord.ApplicationContext):
 
 @bot.event
 async def on_message(message):
-    logging.debug("DISCORD: %s", message)
+    logging.debug("Got a message: %s", message)
+
+    if str(message.channel.id) != ALLOWED_MESSAGE_CHANNEL_ID:
+        logging.info("Skipping message from disallowed channel: %s", message.channel.id)
+        return None
 
     if message.author == bot.user:
         return
@@ -233,4 +246,5 @@ def save_checkin(message, tier, discord_id):
     return id
 
 
-bot.run(os.getenv("DISCORD_TOKEN"))
+if __name__ == "__main__":
+    bot.run(os.getenv("DISCORD_TOKEN"))
