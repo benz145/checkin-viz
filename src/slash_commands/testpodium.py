@@ -152,7 +152,13 @@ def get_final_medal_holders_challenge_wide(challenge_id):
         JOIN challenge_weeks cw ON m.challenge_week_id = cw.id
         WHERE cw.challenge_id = %s
         AND (cw.bye_week != true OR cw.bye_week IS NULL)
-        AND m.medal IN ('highest_tier_challenge', 'earliest_for_challenge', 'latest_for_challenge')
+        AND m.medal IN (
+            'highest_tier_challenge',
+            'earliest_for_challenge',
+            'latest_for_challenge',
+            'all_gold',
+            'all_green'
+        )
     ),
     numbered_weeks AS (
         SELECT 
@@ -283,6 +289,7 @@ def gather_achievements(challenge_id):
     
     # Build medal maps once for all medal types
     week_achievements = collect_all_achievement_tags(final_week_medals)
+    challenge_achievements = collect_all_achievement_tags(final_challenge_medals)
     
     lines = []
     
@@ -325,11 +332,21 @@ def gather_achievements(challenge_id):
     gold_week = week_achievements.get("gold", {})
     first_to_green = week_achievements.get("first_to_green", {})
     green_week = week_achievements.get("green", {})
+    all_gold = challenge_achievements.get("all_gold", {})
+    all_green = challenge_achievements.get("all_green", {})
     
     # Add blank line between groups if both exist
-    if (highest_tier_challenge_details or highest_tier_week) and (gold_week or first_to_green or green_week):
+    if (highest_tier_challenge_details or highest_tier_week) and (
+        gold_week or first_to_green or green_week or all_gold or all_green
+    ):
         lines.append(None)  # Marker for blank line
     
+    # Challenge-wide all_gold/all_green
+    if all_gold:
+        lines.append(render_achievement_line("⭐", "All Gold", all_gold))
+    if all_green:
+        lines.append(render_achievement_line("❇️", "All Green", all_green))
+
     if gold_week:
         lines.append(render_achievement_line(":medal:", "Gold Week", gold_week))
     
