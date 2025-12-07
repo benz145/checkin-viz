@@ -3,10 +3,6 @@ import os
 import logging
 from helpers import fetchall
 
-LOGLEVEL = os.environ.get("LOGLEVEL", "WARNING").upper()
-logging.basicConfig(level="INFO")
-
-
 def score(tier, rule_set):
     if rule_set == 1:
         return version_1_score(tier)
