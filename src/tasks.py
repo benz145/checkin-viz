@@ -7,15 +7,18 @@ import logging
 logging.basicConfig(level="DEBUG")
 huey = SqliteHuey()
 
+
 @huey.task()
 def example_task(n):
     print("-- RUNNING EXAMPLE TASK: CALLED WITH n=%s --" % n)
     return n
 
+
 @huey.periodic_task(crontab(hour="8", day="1"))
 def is_green_week():
     print("Determining if green")
     determine_if_green()
+
 
 @huey.periodic_task(crontab(hour="8", day="1"))
 def check_mulligans():
