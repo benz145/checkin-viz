@@ -174,6 +174,9 @@ async def on_message(message):
 
     logging.info("DISCORD: tier from message: %s", tier)
 
+    # Mark all valid check-ins
+    await message.add_reaction("✅")
+
     if int(tier[1:]) > 10:
         await message.add_reaction("🔥")
 
