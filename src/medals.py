@@ -8,6 +8,36 @@ PODIUM_EMOJIS = {
     "third_place": "🥉",
 }
 
+# Medal metadata: group (A-D) and difficulty (1-4) for organizing and ordering medals
+medal_metadata = {
+    "all_gold": {"group": "A", "difficulty": 1},
+    "all_green": {"group": "A", "difficulty": 2},
+    "highest_tier_challenge": {"group": "B", "difficulty": 1},
+    "highest_tier_week": {"group": "B", "difficulty": 2},
+    "gold": {"group": "C", "difficulty": 1},
+    "green": {"group": "C", "difficulty": 2},
+    "first_to_green": {"group": "C", "difficulty": 3},
+    "earliest_for_challenge": {"group": "D", "difficulty": 1},
+    "latest_for_challenge": {"group": "D", "difficulty": 1},
+    "earliest_for_week": {"group": "D", "difficulty": 2},
+    "latest_for_week": {"group": "D", "difficulty": 2},
+}
+
+# Nice display names for medals
+nice_medal_names = {
+    "highest_tier_challenge": "Highest Overall Tier",
+    "highest_tier_week": "Highest Weekly Tier",
+    "gold": "Gold Week",
+    "all_gold": "All Gold",
+    "first_to_green": "First to Green",
+    "green": "Green Week",
+    "all_green": "All Green",
+    "earliest_for_week": "Earliest Weekly Check-in",
+    "latest_for_week": "Latest Weekly Check-in",
+    "earliest_for_challenge": "Earliest Overall Check-in",
+    "latest_for_challenge": "Latest Overall Check-in",
+}
+
 # all medal queries return
 # name, tier, checkin_id, challenge_week_id, time, medal_name, medal_emoji
 # they can be composed with the medals function
@@ -42,6 +72,8 @@ def all_medals(challenge_id, challenge_week_id):
         highest_tier_challenge(challenge_id),
         earliest_for_challenge(challenge_id),
         latest_for_challenge(challenge_id),
+        all_gold_challenge(challenge_id),
+        all_green_challenge(challenge_id),
     )
 
 
@@ -122,12 +154,11 @@ insert into medals
 
 def reconcile_medals(new_medals, current_medals):
     # green, gold, and first to green cannot be stolen
+    non_stealable = {"green", "gold", "first_to_green", "all_gold", "all_green"}
     medals = [
         {**m._asdict(), "steal": None}
         for m in new_medals
-        if m.medal_name == "green"
-        or m.medal_name == "gold"
-        or m.medal_name == "first_to_green"
+        if m.medal_name in non_stealable
     ]
 
     latest_for_week_new = next(
@@ -176,18 +207,19 @@ def reconcile_medals(new_medals, current_medals):
     latest_for_challenge_old = next(
         (m for m in current_medals if m.medal_name == "latest_for_challenge"), None
     )
-    medals.append(
-        {
-            **latest_for_week_new._asdict(),
-            "steal": (
-                latest_for_challenge_old.checkin_id
-                if latest_for_challenge_old is not None
-                and latest_for_challenge_new.checkin_id
-                != latest_for_challenge_old.checkin_id
-                else None
-            ),
-        }
-    )
+    if latest_for_challenge_new is not None:
+        medals.append(
+            {
+                **latest_for_challenge_new._asdict(),
+                "steal": (
+                    latest_for_challenge_old.checkin_id
+                    if latest_for_challenge_old is not None
+                    and latest_for_challenge_new.checkin_id
+                    != latest_for_challenge_old.checkin_id
+                    else None
+                ),
+            }
+        )
 
     earliest_for_challenge_new = next(
         (m for m in new_medals if m.medal_name == "earliest_for_challenge"), None
@@ -195,18 +227,19 @@ def reconcile_medals(new_medals, current_medals):
     earliest_for_challenge_old = next(
         (m for m in current_medals if m.medal_name == "earliest_for_challenge"), None
     )
-    medals.append(
-        {
-            **earliest_for_week_new._asdict(),
-            "steal": (
-                earliest_for_challenge_old.checkin_id
-                if earliest_for_challenge_old is not None
-                and earliest_for_challenge_new.checkin_id
-                != earliest_for_challenge_old.checkin_id
-                else None
-            ),
-        }
-    )
+    if earliest_for_challenge_new is not None:
+        medals.append(
+            {
+                **earliest_for_challenge_new._asdict(),
+                "steal": (
+                    earliest_for_challenge_old.checkin_id
+                    if earliest_for_challenge_old is not None
+                    and earliest_for_challenge_new.checkin_id
+                    != earliest_for_challenge_old.checkin_id
+                    else None
+                ),
+            }
+        )
 
     highest_tier_for_week_new = next(
         (m for m in new_medals if m.medal_name == "highest_tier_week"), None
@@ -511,3 +544,165 @@ LIMIT 1
     if execute:
         return fetchall(sql, {"challenge_week_id": challenge_week_id})
     return (sql, {"challenge_week_id": challenge_week_id})
+
+
+def all_gold_challenge(challenge_id, execute=False):
+    sql = """
+WITH non_bye_weeks AS (
+    SELECT id
+    FROM challenge_weeks
+    WHERE challenge_id = %(challenge_id)s
+      AND (bye_week != true OR bye_week IS NULL)
+),
+required_weeks AS (
+    SELECT COUNT(*) AS total_weeks FROM non_bye_weeks
+),
+daily_checkins AS (
+    SELECT
+        cw.id AS challenge_week_id,
+        ci.challenger,
+        DATE(ci.time AT TIME ZONE ci.tz) AS checkin_date,
+        MAX(ci.time AT TIME ZONE ci.tz) AS latest_checkin_time,
+        (ARRAY_AGG(ci.id ORDER BY ci.time AT TIME ZONE ci.tz DESC))[1] AS latest_checkin_id,
+        (ARRAY_AGG(ci.tier ORDER BY ci.time AT TIME ZONE ci.tz DESC))[1] AS latest_tier
+    FROM checkins ci
+    JOIN challenge_weeks cw ON ci.challenge_week_id = cw.id
+    JOIN non_bye_weeks nbw ON nbw.id = cw.id
+    GROUP BY cw.id, ci.challenger, DATE(ci.time AT TIME ZONE ci.tz)
+),
+totals AS (
+    SELECT
+        challenge_week_id,
+        challenger,
+        latest_checkin_time AS time,
+        ROW_NUMBER() OVER (
+            PARTITION BY challenge_week_id, challenger
+            ORDER BY checkin_date
+        ) AS checkin_count,
+        latest_checkin_id AS checkin_id,
+        latest_tier AS tier
+    FROM daily_checkins
+),
+gold_weeks AS (
+    SELECT *
+    FROM totals
+    WHERE checkin_count = 7
+),
+challenger_gold_counts AS (
+    SELECT
+        challenger,
+        COUNT(DISTINCT challenge_week_id) AS weeks_with_gold
+    FROM gold_weeks
+    GROUP BY challenger
+),
+gold_with_counts AS (
+    SELECT
+        gw.*,
+        cgc.weeks_with_gold,
+        ROW_NUMBER() OVER (
+            PARTITION BY gw.challenger
+            ORDER BY gw.challenge_week_id DESC, gw.time DESC
+        ) AS rn
+    FROM gold_weeks gw
+    JOIN challenger_gold_counts cgc ON gw.challenger = cgc.challenger
+)
+SELECT
+    c.name,
+    c.id AS challenger_id,
+    gw.tier,
+    gw.checkin_id,
+    gw.challenge_week_id,
+    gw.time,
+    'all_gold' AS medal_name,
+    '⭐' AS medal_emoji
+FROM gold_with_counts gw
+JOIN challengers c ON c.id = gw.challenger
+JOIN required_weeks rw ON TRUE
+WHERE rw.total_weeks > 0
+  AND gw.weeks_with_gold = rw.total_weeks
+  AND gw.rn = 1
+"""
+    if execute:
+        return fetchall(sql, {"challenge_id": challenge_id})
+    return (sql, {"challenge_id": challenge_id})
+
+
+def all_green_challenge(challenge_id, execute=False):
+    sql = """
+WITH non_bye_weeks AS (
+    SELECT id
+    FROM challenge_weeks
+    WHERE challenge_id = %(challenge_id)s
+      AND (bye_week != true OR bye_week IS NULL)
+),
+required_weeks AS (
+    SELECT COUNT(*) AS total_weeks FROM non_bye_weeks
+),
+daily_checkins AS (
+    SELECT
+        cw.id AS challenge_week_id,
+        ci.challenger,
+        DATE(ci.time AT TIME ZONE ci.tz) AS checkin_date,
+        MAX(ci.time AT TIME ZONE ci.tz) AS latest_checkin_time,
+        (ARRAY_AGG(ci.id ORDER BY ci.time AT TIME ZONE ci.tz DESC))[1] AS latest_checkin_id,
+        (ARRAY_AGG(ci.tier ORDER BY ci.time AT TIME ZONE ci.tz DESC))[1] AS latest_tier
+    FROM checkins ci
+    JOIN challenge_weeks cw ON ci.challenge_week_id = cw.id
+    JOIN non_bye_weeks nbw ON nbw.id = cw.id
+    GROUP BY cw.id, ci.challenger, DATE(ci.time AT TIME ZONE ci.tz)
+),
+totals AS (
+    SELECT
+        challenge_week_id,
+        challenger,
+        latest_checkin_time AS time,
+        ROW_NUMBER() OVER (
+            PARTITION BY challenge_week_id, challenger
+            ORDER BY checkin_date
+        ) AS checkin_count,
+        latest_checkin_id AS checkin_id,
+        latest_tier AS tier
+    FROM daily_checkins
+),
+green_weeks AS (
+    SELECT *
+    FROM totals
+    WHERE checkin_count = 5
+),
+challenger_green_counts AS (
+    SELECT
+        challenger,
+        COUNT(DISTINCT challenge_week_id) AS weeks_with_green
+    FROM green_weeks
+    GROUP BY challenger
+),
+green_with_counts AS (
+    SELECT
+        gw.*,
+        cgc.weeks_with_green,
+        ROW_NUMBER() OVER (
+            PARTITION BY gw.challenger
+            ORDER BY gw.challenge_week_id DESC, gw.time DESC
+        ) AS rn
+    FROM green_weeks gw
+    JOIN challenger_green_counts cgc ON gw.challenger = cgc.challenger
+)
+SELECT
+    c.name,
+    c.id AS challenger_id,
+    gw.tier,
+    gw.checkin_id,
+    gw.challenge_week_id,
+    gw.time,
+    'all_green' AS medal_name,
+    '❇️' AS medal_emoji
+FROM green_with_counts gw
+JOIN challengers c ON c.id = gw.challenger
+JOIN required_weeks rw ON TRUE
+WHERE rw.total_weeks > 0
+  AND gw.weeks_with_green = rw.total_weeks
+  AND gw.rn = 1
+"""
+    if execute:
+        return fetchall(sql, {"challenge_id": challenge_id})
+    return (sql, {"challenge_id": challenge_id})
