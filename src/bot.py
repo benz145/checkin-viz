@@ -7,7 +7,6 @@ from base_queries import *
 from green import determine_if_green
 import os
 from utils import get_tier
-import random
 import medals
 import slash_commands.quit as quit_slash
 import slash_commands.join as join_slash
@@ -15,16 +14,11 @@ import slash_commands.calc
 from chart import checkin_chart, week_heat_map_from_checkins, write_og_image
 from rule_sets import calculate_total_score
 import medal_log
+from discord_bot import bot
 
 LOGLEVEL = os.environ.get("LOGLEVEL", "DEBUG").upper()
 logging.basicConfig(level=LOGLEVEL)
-BOT_ID = os.environ.get("CHALLENGEBOT_ID")
 ALLOWED_MESSAGE_CHANNEL_ID = str(os.environ.get("ALLOWED_MESSAGE_CHANNEL_ID"))
-
-intents = discord.Intents.default()
-intents.message_content = True
-
-bot = discord.Bot(intents=intents)
 
 # Import medal metadata and names from medals module
 from medals import medal_metadata, nice_medal_names
@@ -88,33 +82,14 @@ async def get_chart(ctx: discord.ApplicationContext):
     await send_current_chart(ctx)
 
 
-no_gifs = [
-    "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExcnp1eHN2MGZ4OWI2ZnV2eGdlNno4MzU3cTJmdGFpZTZrNHY1Ym9jaCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/JYZ397GsFrFtu/giphy.gif",
-    "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExdGI2am52cDl1MTJ1dmliM2N1emVzZDdwbDAzMHF4d3MwdXB5Zml3cyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/AL10PPC3eZhxC/giphy.gif",
-    "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExcjFic3owOHBwbmR2NzY0MTB6ajF1cGNvamsyZ3FqY3B1N2plNmYwYyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/ctDn1gKAGSW27BPleZ/giphy.gif",
-]
-yes_gifs = [
-    "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExbjF6MzM5NGh6ZHFxcGs1dDh2eGpvenR3ZjJ2azVna2d3Z2NzbDQ1cyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/HUkOv6BNWc1HO/giphy.gif",
-    "https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExeWF0M2lqZHY3bTd6dHNpcWtpb2VkeWd1NXFlcXZ5cjdrbWxkaHFuaiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/MZocLC5dJprPTcrm65/giphy.gif",
-]
-
-
-@bot.slash_command(name="green", description="Determine if it's a green week")
+@bot.slash_command(name="green", description="Check if it's a green week")
 async def green(ctx: discord.ApplicationContext):
     green_week = determine_if_green()
-    print(green_week)
     if green_week == True:
-        await ctx.send_response(
-            embed=discord.Embed(
-                image=random.choice(yes_gifs), description="It's a green week!!!!"
-            )
-        )
+        await ctx.send_response("It's a green week!")
     else:
-        await ctx.send_response(
-            embed=discord.Embed(
-                image=random.choice(no_gifs), description="Not this week!"
-            )
-        )
+        await ctx.send_response("It's not a green week")
+    print(green_week)
 
 
 @bot.slash_command(name="quit", description="I can't handle the challenge.")

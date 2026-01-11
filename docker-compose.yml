@@ -4,8 +4,6 @@ services:
       context: .
     platform: linux/amd64
     restart: unless-stopped
-#    ports:
-#      - "3000:8000"
     environment:
       DB_CONNECT_STRING: $DB_CONNECT_STRING
       DB_USER: $DB_USER
@@ -17,6 +15,7 @@ services:
     volumes:
       - ./src/static:/src/static
     image: git.tcrez.dev/tcrez/checkin-viz
+
   bot:
     build:
       context: .
@@ -33,3 +32,52 @@ services:
       LOGLEVEL: $LOGLEVEL
       DISCORD_TOKEN: $DISCORD_TOKEN
       ALLOWED_MESSAGE_CHANNEL_ID: $ALLOWED_MESSAGE_CHANNEL_ID
+
+  rq-cron:
+    build:
+      context: .
+      dockerfile: Dockerfile.rq
+    platform: linux/amd64
+    restart: unless-stopped
+    entrypoint: poetry run rq cron tasks.py --url redis://valkey:6379
+    environment:
+      DB_CONNECT_STRING: $DB_CONNECT_STRING
+      DB_USER: $DB_USER
+      DB_HOST: $DB_HOST
+      DB_PASSWORD: $DB_PASSWORD
+      TWILIO_AUTH_TOKEN: $TWILIO_AUTH_TOKEN
+      LOGLEVEL: $LOGLEVEL
+      DISCORD_TOKEN: $DISCORD_TOKEN
+      ALLOWED_MESSAGE_CHANNEL_ID: $ALLOWED_MESSAGE_CHANNEL_ID
+    depends_on:
+      valkey:
+        condition: service_healthy
+
+  rq-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.rq
+    platform: linux/amd64
+    restart: unless-stopped
+    entrypoint: poetry run rq worker cron -u redis://valkey:6379
+    environment:
+      DB_CONNECT_STRING: $DB_CONNECT_STRING
+      DB_USER: $DB_USER
+      DB_HOST: $DB_HOST
+      DB_PASSWORD: $DB_PASSWORD
+      TWILIO_AUTH_TOKEN: $TWILIO_AUTH_TOKEN
+      LOGLEVEL: $LOGLEVEL
+      DISCORD_TOKEN: $DISCORD_TOKEN
+      ALLOWED_MESSAGE_CHANNEL_ID: $ALLOWED_MESSAGE_CHANNEL_ID
+    depends_on:
+      valkey:
+        condition: service_healthy
+
+  valkey:
+    hostname: valkey
+    image: valkey/valkey:9-alpine
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli ping | grep PONG"]
+      interval: 1s
+      timeout: 3s
+      retries: 5

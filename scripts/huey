@@ -1,3 +1,0 @@
-#!/bin/bash
-rm -rf ./huey.db # delete hueyfile
-poetry run huey_consumer.py tasks.huey

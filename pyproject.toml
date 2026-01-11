@@ -7,7 +7,7 @@ readme = "README.md"
 package-mode = false
 
 [tool.poetry.dependencies]
-python = ">=3.12"
+python = "~3.12"
 requests = "*"
 svgwrite = "*"
 flask = "*"
@@ -18,9 +18,10 @@ python-dotenv = "*"
 pytz = "*"
 flask-cors = "^4.0.1"
 twilio = "^9.2.3"
-huey = "^2.5.1"
 py-cord = {extras = ["speed"], version = "^2.6.1"}
 simpleeval = "^1.0.3"
+rq = "^2.6.1"
+valkey = "^6.1.1"
 
 
 [build-system]

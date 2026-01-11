@@ -1,0 +1,9 @@
+FROM python:3.12-slim
+
+RUN pip install poetry
+
+COPY poetry.lock ./
+COPY pyproject.toml ./
+COPY src/*.py /
+
+RUN poetry install --no-interaction --no-ansi
