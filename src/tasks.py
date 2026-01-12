@@ -78,8 +78,8 @@ async def challenge_start_message():
     select 
         ch.discord_id,
         c.name as challenge_name,
-        to_char(c.start, 'Day Month DD') as start,
-        to_char(c.end, 'Day Month DD') as end
+        to_char(c.start, 'Month DDth') as start,
+        to_char(c.end, 'Month DDth') as end
     from challenges c
     join challenger_challenges cc on c.id = cc.challenge_id
     join challengers ch ON ch.id = cc.challenger_id
