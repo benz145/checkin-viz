@@ -1,4 +1,5 @@
 from rq import cron
+from helpers import fetchall
 from green import determine_if_green
 import discord
 from discord_bot import bot
@@ -6,6 +7,7 @@ import os
 #from mulligan import check_last_week_for_mulligan_necessity, insert_mulligan_for
 import logging
 import random
+from functools import reduce
 
 logging.basicConfig(level="DEBUG")
 from rq import cron
@@ -29,11 +31,12 @@ async def example_task():
     print("-- RUNNING EXAMPLE TASK --")
 
 
-#cron.register(
-    #example_task,
-    #queue_name='cron',
-    #cron='* * * * *'
-#)
+#if os.environ.get("TEST_CRON") == "1":
+    #cron.register(
+        #example_task,
+        #queue_name='cron',
+        #cron='* * * * *'
+    #)
 
 no_gifs = [
     "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExcnp1eHN2MGZ4OWI2ZnV2eGdlNno4MzU3cTJmdGFpZTZrNHY1Ym9jaCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/JYZ397GsFrFtu/giphy.gif",
@@ -50,6 +53,7 @@ async def is_green_week():
     channel = await get_channel()
     if channel is None:
         logging.warning("Cannot send message channel not found")
+        return
     if green_week == True:
         await channel.send(
             embed=discord.Embed(
@@ -66,9 +70,51 @@ async def is_green_week():
 cron.register(
     is_green_week,
     queue_name='cron',
-    cron='0 14 * * 1'
+    cron='2 14 * * 1'
 )
 
+async def challenge_start_message():
+    sql = """
+    select 
+        ch.discord_id,
+        c.name as challenge_name,
+        to_char(c.start, 'Day Month DD') as start,
+        to_char(c.end, 'Day Month DD') as end
+    from challenges c
+    join challenger_challenges cc on c.id = cc.challenge_id
+    join challengers ch ON ch.id = cc.challenger_id
+    where c.start::DATE = current_date::DATE
+    """
+
+    challenge = fetchall(sql)
+    if len(challenge) == 0:
+        logging.info("No challenge starts today")
+        return
+
+    challenge_data = challenge[0]
+    challengers = reduce(lambda str, c: str + f" <@{c.discord_id}>", challenge, "")
+    message = f"""
+# Welcome to {challenge_data.challenge_name}
+
+**Start:** {challenge_data.start}
+**End:** {challenge_data.end}
+
+## Challengers
+-# Use /join or /quit to opt in or out
+
+> {challengers}
+"""
+    channel = await get_channel()
+    if channel is None:
+        logging.warning("Cannot send message channel not found")
+        return
+    await channel.send(message)
+
+cron.register(
+    challenge_start_message,
+    queue_name='cron',
+    cron='0 14 * * 1'
+)
 
 #def check_mulligans():
 #    logging.info("checking for mulligans")
