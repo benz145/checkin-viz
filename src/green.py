@@ -6,13 +6,16 @@ import random
 
 def number_of_non_green_weeks_before_this_one(challenge_id):
     sql = """
-    select count(*) from challenge_weeks
-      where 
-      challenge_id = %s
-      and "end" >= (
-          select "end" from challenge_weeks where "end" <= current_date - 7 and green = true order by "end" desc limit 1
-      )
-      and "end" <= current_date - 7;
+  select count(*) from challenge_weeks
+       where
+       challenge_id = 25
+       /* the end is after the last green week or the first week */
+       and "end" > coalesce(
+           (select "end" from challenge_weeks where green = true and challenge_id = 25 order by "end" desc limit 1),
+           (select "end" from challenge_weeks where challenge_id = 25 order by "end" asc limit 1)
+        )
+       /* the end is before now */
+       and "end" < current_date
   """
     return fetchone(sql, [challenge_id]).count
 
