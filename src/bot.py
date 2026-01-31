@@ -188,7 +188,7 @@ async def on_message(message):
         for medal in relevant_medals:
             nice_name = describe_medal(medal.medal_name)
             emoji = medal.medal_emoji or ""
-            medal_display = f"{emoji} {nice_name}".strip()
+            medal_display = f"{emoji} **{nice_name}**".strip()
             
             if medal.stolen_checkin_challenger_name:
                 if medal.discord_id == medal.stolen_discord_id:
