@@ -2,6 +2,7 @@ import discord
 from discord.ui import Modal, Select, InputText, Button
 import re
 import logging
+from collections import defaultdict
 from helpers import fetchall, fetchone, with_psycopg
 from base_queries import *
 from green import determine_if_green
@@ -182,7 +183,6 @@ async def on_message(message):
             await message.add_reaction(medal.medal_emoji)
         
         # Group medals by user, action type, and (for steals) the person they stole from
-        from collections import defaultdict
         grouped_medals = defaultdict(list)
         
         for medal in relevant_medals:
@@ -190,15 +190,16 @@ async def on_message(message):
             emoji = medal.medal_emoji or ""
             medal_display = f"{emoji} __**{nice_name}**__".strip()
             
-            if medal.stolen_checkin_challenger_name:
+            # Check if this medal was stolen (has a previous holder)
+            if medal.stolen_checkin_challenger_name and medal.stolen_discord_id is not None:
                 if medal.discord_id == medal.stolen_discord_id:
-                    # Special case: still holds and surpassed
+                    # Special case: still holds and surpassed their own record
                     key = (medal.discord_id, "still_holds", None)
                 else:
-                    # Stolen from someone
+                    # Stolen from someone else
                     key = (medal.discord_id, "stole", medal.stolen_discord_id)
             else:
-                # Earned
+                # Earned (no previous holder or invalid steal data)
                 key = (medal.discord_id, "earned", None)
             
             grouped_medals[key].append(medal_display)
@@ -226,9 +227,17 @@ async def on_message(message):
                     f"\n\n<@{discord_id}> still holds {medals_text}, and has now surpassed {pronoun}!"
                 )
             elif action_type == "stole":
-                medal_message += (
-                    f"\n\n<@{discord_id}> stole {medals_text} from <@{stolen_discord_id}>!"
-                )
+                # Validate stolen_discord_id to prevent invalid mentions
+                if stolen_discord_id is not None:
+                    medal_message += (
+                        f"\n\n<@{discord_id}> stole {medals_text} from <@{stolen_discord_id}>!"
+                    )
+                else:
+                    # Fallback if stolen_discord_id is None (shouldn't happen, but safety check)
+                    logging.warning(f"stolen_discord_id is None for steal action by {discord_id}")
+                    medal_message += (
+                        f"\n\n<@{discord_id}> stole {medals_text}!"
+                    )
             else:  # earned
                 medal_message += (
                     f"\n\n<@{discord_id}> earned {medals_text}!"
