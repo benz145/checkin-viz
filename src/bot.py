@@ -176,25 +176,64 @@ async def on_message(message):
     relevant_medals = [medal for medal in log if medal.checkin_id == checkin_id]
     if relevant_medals:
         logging.info("DISCORD: medals for checkin %s", relevant_medals)
-        medal_message = ""
+        
+        # Add reactions for all medals
         for medal in relevant_medals:
             await message.add_reaction(medal.medal_emoji)
+        
+        # Group medals by user, action type, and (for steals) the person they stole from
+        from collections import defaultdict
+        grouped_medals = defaultdict(list)
+        
+        for medal in relevant_medals:
             nice_name = describe_medal(medal.medal_name)
             emoji = medal.medal_emoji or ""
+            medal_display = f"{emoji} {nice_name}".strip()
+            
             if medal.stolen_checkin_challenger_name:
                 if medal.discord_id == medal.stolen_discord_id:
-                    medal_message += (
-                        f"\n\n<@{medal.discord_id}> still holds {emoji} {nice_name}, and has now surpassed it!"
-                    )
+                    # Special case: still holds and surpassed
+                    key = (medal.discord_id, "still_holds", None)
                 else:
-                    medal_message += (
-                        f"\n\n<@{medal.discord_id}> stole {emoji} {nice_name} "
-                        f"from <@{medal.stolen_discord_id}>!"
-                    )
+                    # Stolen from someone
+                    key = (medal.discord_id, "stole", medal.stolen_discord_id)
             else:
+                # Earned
+                key = (medal.discord_id, "earned", None)
+            
+            grouped_medals[key].append(medal_display)
+        
+        # Format grouped messages
+        # Sort so earned messages come before stolen/still_holds messages
+        def sort_key(item):
+            (discord_id, action_type, stolen_discord_id), medal_list = item
+            # Return 0 for "earned", 1 for others to ensure earned comes first
+            return (0 if action_type == "earned" else 1, discord_id, action_type, stolen_discord_id or "")
+        
+        medal_message = ""
+        for (discord_id, action_type, stolen_discord_id), medal_list in sorted(grouped_medals.items(), key=sort_key):
+            # Format medal list with commas and "and"
+            if len(medal_list) == 1:
+                medals_text = medal_list[0]
+            elif len(medal_list) == 2:
+                medals_text = f"{medal_list[0]} and {medal_list[1]}"
+            else:
+                medals_text = ", ".join(medal_list[:-1]) + f", and {medal_list[-1]}"
+            
+            if action_type == "still_holds":
+                pronoun = "them" if len(medal_list) > 1 else "it"
                 medal_message += (
-                    f"\n\n<@{medal.discord_id}> earned {emoji} {nice_name}!"
+                    f"\n\n<@{discord_id}> still holds {medals_text}, and has now surpassed {pronoun}!"
                 )
+            elif action_type == "stole":
+                medal_message += (
+                    f"\n\n<@{discord_id}> stole {medals_text} from <@{stolen_discord_id}>!"
+                )
+            else:  # earned
+                medal_message += (
+                    f"\n\n<@{discord_id}> earned {medals_text}!"
+                )
+        
         logging.info("DISCORD: %s", medal_message)
         await message.reply(medal_message)
 
