@@ -184,16 +184,16 @@ async def on_message(message):
             if medal.stolen_checkin_challenger_name:
                 if medal.discord_id == medal.stolen_discord_id:
                     medal_message += (
-                        f"\n\n<@{medal.discord_id}> still holds {emoji} {nice_name}, and has now surpassed it!"
+                        f"\n\n<@{medal.discord_id}> still holds {emoji} **{nice_name}**, and has now surpassed it!"
                     )
                 else:
                     medal_message += (
-                        f"\n\n<@{medal.discord_id}> stole {emoji} {nice_name} "
+                        f"\n\n<@{medal.discord_id}> stole {emoji} **{nice_name}** "
                         f"from <@{medal.stolen_discord_id}>!"
                     )
             else:
                 medal_message += (
-                    f"\n\n<@{medal.discord_id}> earned {emoji} {nice_name}!"
+                    f"\n\n<@{medal.discord_id}> earned {emoji} **{nice_name}**!"
                 )
         logging.info("DISCORD: %s", medal_message)
         await message.reply(medal_message)
