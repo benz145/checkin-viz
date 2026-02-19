@@ -4,7 +4,8 @@ from green import determine_if_green
 import discord
 from discord_bot import bot
 import os
-#from mulligan import check_last_week_for_mulligan_necessity, insert_mulligan_for
+
+# from mulligan import check_last_week_for_mulligan_necessity, insert_mulligan_for
 import logging
 import random
 from functools import reduce
@@ -14,6 +15,7 @@ from rq import cron
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 DISCORD_CHANNEL_ID = os.environ.get("ALLOWED_MESSAGE_CHANNEL_ID")
+
 
 async def get_channel():
     if bot.user is None:
@@ -25,18 +27,19 @@ async def get_channel():
             logging.info("Cannot find channel %s", DISCORD_CHANNEL_ID)
     return channel
 
+
 async def example_task():
     print("-- RUNNING EXAMPLE TASK --")
     await send_bot_message("test")
     print("-- RUNNING EXAMPLE TASK --")
 
 
-#if os.environ.get("TEST_CRON") == "1":
-    #cron.register(
-        #example_task,
-        #queue_name='cron',
-        #cron='* * * * *'
-    #)
+# if os.environ.get("TEST_CRON") == "1":
+# cron.register(
+# example_task,
+# queue_name='cron',
+# cron='* * * * *'
+# )
 
 no_gifs = [
     "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExcnp1eHN2MGZ4OWI2ZnV2eGdlNno4MzU3cTJmdGFpZTZrNHY1Ym9jaCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/JYZ397GsFrFtu/giphy.gif",
@@ -47,6 +50,8 @@ yes_gifs = [
     "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExbjF6MzM5NGh6ZHFxcGs1dDh2eGpvenR3ZjJ2azVna2d3Z2NzbDQ1cyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/HUkOv6BNWc1HO/giphy.gif",
     "https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExeWF0M2lqZHY3bTd6dHNpcWtpb2VkeWd1NXFlcXZ5cjdrbWxkaHFuaiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/MZocLC5dJprPTcrm65/giphy.gif",
 ]
+
+
 async def is_green_week():
     logging.info("Determining if green")
     green_week = determine_if_green()
@@ -57,21 +62,20 @@ async def is_green_week():
     if green_week == True:
         await channel.send(
             embed=discord.Embed(
-                image=random.choice(yes_gifs), description="It's a green week!!!!"
+                image=random.choice(yes_gifs), description="It's a green week! Don't forget that means you need 5 checkins this week or you're knocked out!"
             )
         )
     else:
         await channel.send(
             embed=discord.Embed(
-                image=random.choice(no_gifs), description="Not this week!"
+                image=random.choice(no_gifs), 
+                description="Not a green week this week!"
             )
         )
 
-cron.register(
-    is_green_week,
-    queue_name='cron',
-    cron='2 14 * * 1'
-)
+
+cron.register(is_green_week, queue_name="cron", cron="2 14 * * 1")
+
 
 async def challenge_start_message():
     sql = """
@@ -110,13 +114,10 @@ async def challenge_start_message():
         return
     await channel.send(message)
 
-cron.register(
-    challenge_start_message,
-    queue_name='cron',
-    cron='0 14 * * 1'
-)
 
-#def check_mulligans():
+cron.register(challenge_start_message, queue_name="cron", cron="0 14 * * 1")
+
+# def check_mulligans():
 #    logging.info("checking for mulligans")
 #    last_week_checkins = check_last_week_for_mulligan_necessity()
 #    logging.info("last week: %s" % last_week_checkins)
