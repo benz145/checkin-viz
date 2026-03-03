@@ -7,7 +7,7 @@ import json
 from flask import Flask, render_template, request, url_for, redirect
 import logging
 from rule_sets import calculate_total_score
-from chart import checkin_chart, week_heat_map_from_checkins, write_og_image
+from chart import checkin_chart, red_week_holders, week_heat_map_from_checkins, write_og_image
 import hashlib
 from helpers import fetchall, fetchone, with_psycopg
 from base_queries import *
@@ -198,6 +198,7 @@ def index():
         total_checkins,
         total_possible_checkins(current_challenge.id)[0],
         total_possible_checkins_so_far(current_challenge.id, current_challenge_week.id),
+        red_week_names=red_week_holders(week_id),
     )
     write_og_image(chart, week_id)
     og_path = url_for("static", filename="preview-" + str(week_id) + ".png")

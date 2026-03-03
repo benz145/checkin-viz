@@ -12,7 +12,7 @@ import medals
 import slash_commands.quit as quit_slash
 import slash_commands.join as join_slash
 import slash_commands.calc
-from chart import checkin_chart, week_heat_map_from_checkins, write_og_image
+from chart import checkin_chart, red_week_holders, week_heat_map_from_checkins, write_og_image
 from rule_sets import calculate_total_score
 import medal_log
 from discord_bot import bot
@@ -78,6 +78,7 @@ async def get_chart(ctx: discord.ApplicationContext):
         total_possible_checkins_so_far(
             current_challenge.id, selected_challenge_week.id
         ),
+        red_week_names=red_week_holders(selected_challenge_week.id),
     )
     write_og_image(chart, selected_challenge_week.id)
     await send_current_chart(ctx)

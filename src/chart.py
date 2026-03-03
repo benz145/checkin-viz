@@ -7,6 +7,7 @@ from helpers import fetchall, fetchone
 from datetime import datetime, timedelta, date
 import os
 from rule_sets import score
+from medals import red as red_medal_query
 
 
 weekdays = [
@@ -81,6 +82,14 @@ def mulliganed_challengers(challenge_id):
     ]
 
 
+def red_week_holders(challenge_week_id):
+    """Return set of challenger names who have (or would have) Red Week for this week.
+    Uses the same logic as the Red Week medal (5 check-ins, each T3+), so it works
+    retroactively for past weeks without relying on the medals table."""
+    rows = red_medal_query(challenge_week_id, execute=True)
+    return {r.name for r in rows} if rows else set()
+
+
 def checkin_chart(
     data: List[CheckinChartData],
     width: int,
@@ -93,11 +102,15 @@ def checkin_chart(
     total_checkins,
     total_possible_checkins,
     total_possible_checkins_so_far,
+    red_week_names=None,
 ):
     if len(data) == 0:
         logging.warning("empty week + year selected")
         dwg = svgwrite.Drawing("empty.svg", size=(10, 10))
         return dwg.tostring()
+
+    if red_week_names is None:
+        red_week_names = set()
 
     wGap = 0
     hGap = 20
@@ -112,7 +125,17 @@ def checkin_chart(
         "#238b45",
         "#005a32",
     ]
+    reds = [
+        "#fee2e2",
+        "#fecaca",
+        "#fca5a5",
+        "#f87171",
+        "#ef4444",
+        "#dc2626",
+        "#b91c1c",
+    ]
     green_mode = greens[4]
+    red_mode = reds[4]
     base_color = green_mode if green else "white"
 
     columns = len(data)
@@ -168,9 +191,12 @@ def checkin_chart(
             stroke_color = colors[3] if not is_knocked_out else colors[1]
 
             if chart.totalCheckins >= 5 and dataUnit.y != 0:
-                fill_color = greens[4] if not green else greens[6]
+                if chart.name in red_week_names:
+                    fill_color = reds[4] if not green else reds[6]
+                else:
+                    fill_color = greens[4] if not green else greens[6]
             if chart.totalCheckins >= 5:
-                stroke_color = greens[6]
+                stroke_color = reds[6] if chart.name in red_week_names else greens[6]
             # gold for 7!
             if chart.totalCheckins >= 7:
                 fill_color = "#D4AF37"

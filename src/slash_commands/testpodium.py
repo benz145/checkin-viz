@@ -95,7 +95,7 @@ def get_final_medal_holders_per_week(challenge_id):
                     -- For non-stealable medals, partition by challenger too (multiple people can earn)
                     -- For stealable medals, only partition by medal+week (one final holder)
                     CASE 
-                        WHEN m.medal IN ('green', 'gold', 'first_to_green') 
+                        WHEN m.medal IN ('green', 'red', 'gold', 'first_to_green') 
                         THEN m.challenger_id 
                     END
                 ORDER BY m.created_at DESC
@@ -361,12 +361,13 @@ def gather_achievements(challenge_id):
     gold_week = week_achievements.get("gold", {})
     first_to_green = week_achievements.get("first_to_green", {})
     green_week = week_achievements.get("green", {})
+    red_week = week_achievements.get("red", {})
     all_gold = challenge_achievements.get("all_gold", {})
     all_green = challenge_achievements.get("all_green", {})
 
     # Add blank line between groups if both exist
     if (highest_tier_challenge_details or highest_tier_week) and (
-        gold_week or first_to_green or green_week or all_gold or all_green
+        gold_week or first_to_green or green_week or red_week or all_gold or all_green
     ):
         lines.append(None)  # Marker for blank line
 
@@ -391,12 +392,17 @@ def gather_achievements(challenge_id):
             render_achievement_line(":green_square:", "Green Week", green_week)
         )
 
+    if red_week:
+        lines.append(
+            render_achievement_line(":red_square:", "Red Week", red_week)
+        )
+
     # Group 3: Check-in achievements
     earliest = week_achievements.get("earliest_for_week", {})
     latest = week_achievements.get("latest_for_week", {})
 
     # Add blank line between groups if both exist
-    if (gold_week or first_to_green or green_week) and (earliest or latest):
+    if (gold_week or first_to_green or green_week or red_week) and (earliest or latest):
         lines.append(None)  # Marker for blank line
 
     if earliest:

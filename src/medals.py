@@ -16,6 +16,7 @@ medal_metadata = {
     "highest_tier_week": {"group": "B", "difficulty": 2},
     "gold": {"group": "C", "difficulty": 1},
     "green": {"group": "C", "difficulty": 2},
+    "red": {"group": "C", "difficulty": 2},
     "first_to_green": {"group": "C", "difficulty": 3},
     "earliest_for_challenge": {"group": "D", "difficulty": 1},
     "latest_for_challenge": {"group": "D", "difficulty": 1},
@@ -31,6 +32,7 @@ nice_medal_names = {
     "all_gold": "All Gold",
     "first_to_green": "First to Green",
     "green": "Green Week",
+    "red": "Red Week",
     "all_green": "All Green",
     "earliest_for_week": "Earliest Weekly Check-in",
     "latest_for_week": "Latest Weekly Check-in",
@@ -68,6 +70,7 @@ def all_medals(challenge_id, challenge_week_id):
         latest_for_week(challenge_week_id),
         gold(challenge_week_id),
         green(challenge_week_id),
+        red(challenge_week_id),
         first_to_green(challenge_week_id),
         highest_tier_challenge(challenge_id),
         earliest_for_challenge(challenge_id),
@@ -154,7 +157,7 @@ insert into medals
 
 def reconcile_medals(new_medals, current_medals):
     # green, gold, and first to green cannot be stolen
-    non_stealable = {"green", "gold", "first_to_green", "all_gold", "all_green"}
+    non_stealable = {"green", "red", "gold", "first_to_green", "all_gold", "all_green"}
     medals = [
         {**m._asdict(), "steal": None}
         for m in new_medals
@@ -490,6 +493,51 @@ WITH daily_checkins AS (
      time,
      'green' as medal_name,
      '🟩' as medal_emoji
+ FROM totals
+ JOIN challengers c ON totals.challenger = c.id
+ WHERE checkin_count = 5
+ ORDER BY time
+"""
+    if execute:
+        return fetchall(sql, {"challenge_week_id": challenge_week_id})
+    return (sql, {"challenge_week_id": challenge_week_id})
+
+
+def red(challenge_week_id, execute=False):
+    """Red Week: 5 check-ins for the week, each must be T3 or higher."""
+    sql = """
+WITH daily_checkins AS (
+     SELECT
+         challenger,
+         DATE(time AT TIME ZONE checkins.tz) AS checkin_date,
+         MAX(time AT TIME ZONE checkins.tz) AS latest_checkin_time,
+         (ARRAY_AGG(id ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_checkin_id,
+         (ARRAY_AGG(tier ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_tier
+     FROM checkins
+     WHERE challenge_week_id = %(challenge_week_id)s
+       AND ltrim(tier, 'T')::INT >= 3
+     GROUP BY
+         challenger,
+         DATE(time AT TIME ZONE checkins.tz)
+ ),
+ totals AS (
+     SELECT
+         challenger,
+         latest_checkin_time AS time,
+         ROW_NUMBER() OVER (PARTITION BY challenger ORDER BY checkin_date) AS checkin_count,
+         latest_checkin_id AS checkin_id,
+         latest_tier AS tier
+     FROM daily_checkins
+ )
+ SELECT
+     c.name,
+     c.id as challenger_id,
+     tier,
+     checkin_id,
+     %(challenge_week_id)s as challenge_week_id,
+     time,
+     'red' as medal_name,
+     '🟥' as medal_emoji
  FROM totals
  JOIN challengers c ON totals.challenger = c.id
  WHERE checkin_count = 5
