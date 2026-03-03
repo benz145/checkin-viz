@@ -358,7 +358,7 @@ SELECT challengers.name,
        checkins.challenge_week_id as challenge_week_id,
        time AT TIME ZONE checkins.tz AS time,
        'earliest_for_week' as medal_name,
-       '🌞' as medal_emoji
+       '☀️' as medal_emoji
 FROM checkins
 join challengers on checkins.challenger = challengers.id
 WHERE checkins.challenge_week_id = %(challenge_week_id)s
@@ -401,7 +401,7 @@ SELECT challengers.name,
        checkins.challenge_week_id as challenge_week_id,
        time AT TIME ZONE checkins.tz AS time,
        'latest_for_week' as medal_name,
-       '🌚' as medal_emoji
+       '🌙' as medal_emoji
 FROM checkins
 join challengers on checkins.challenger = challengers.id
 WHERE checkins.challenge_week_id = %(challenge_week_id)s
