@@ -7,7 +7,7 @@ from helpers import fetchall, fetchone
 from datetime import datetime, timedelta, date
 import os
 from rule_sets import score
-from medals import red as red_medal_query
+from medals import red as red_medal_query, diamond as diamond_medal_query
 
 
 weekdays = [
@@ -90,6 +90,13 @@ def red_week_holders(challenge_week_id):
     return {r.name for r in rows} if rows else set()
 
 
+def diamond_week_holders(challenge_week_id):
+    """Return set of challenger names who have (or would have) Diamond Week for this week.
+    Uses the same logic as the Diamond Week medal (7 check-ins, each T3+)."""
+    rows = diamond_medal_query(challenge_week_id, execute=True)
+    return {r.name for r in rows} if rows else set()
+
+
 def checkin_chart(
     data: List[CheckinChartData],
     width: int,
@@ -103,6 +110,7 @@ def checkin_chart(
     total_possible_checkins,
     total_possible_checkins_so_far,
     red_week_names=None,
+    diamond_week_names=None,
 ):
     if len(data) == 0:
         logging.warning("empty week + year selected")
@@ -111,6 +119,8 @@ def checkin_chart(
 
     if red_week_names is None:
         red_week_names = set()
+    if diamond_week_names is None:
+        diamond_week_names = set()
 
     wGap = 0
     hGap = 20
@@ -134,6 +144,7 @@ def checkin_chart(
         "#dc2626",
         "#b91c1c",
     ]
+    diamond_color = "#A4ECFF"
     green_mode = greens[4]
     red_mode = reds[4]
     base_color = green_mode if green else "white"
@@ -197,9 +208,13 @@ def checkin_chart(
                     fill_color = greens[4] if not green else greens[6]
             if chart.totalCheckins >= 5:
                 stroke_color = reds[6] if chart.name in red_week_names else greens[6]
-            # gold for 7!
+            # diamond for 7 T3+ (overrides gold), gold for 7 otherwise
             if chart.totalCheckins >= 7:
-                fill_color = "#D4AF37"
+                if chart.name in diamond_week_names:
+                    fill_color = diamond_color
+                    stroke_color = "#7dd3e8"
+                else:
+                    fill_color = "#D4AF37"
             # lime for first to five
             if (
                 achievements[2] is not None
