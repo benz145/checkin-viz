@@ -12,7 +12,7 @@ import medals
 import slash_commands.quit as quit_slash
 import slash_commands.join as join_slash
 import slash_commands.calc
-from chart import checkin_chart, week_heat_map_from_checkins, write_og_image
+from chart import checkin_chart, diamond_week_holders, red_week_holders, week_heat_map_from_checkins, write_og_image
 from rule_sets import calculate_total_score
 import medal_log
 from discord_bot import bot
@@ -78,6 +78,8 @@ async def get_chart(ctx: discord.ApplicationContext):
         total_possible_checkins_so_far(
             current_challenge.id, selected_challenge_week.id
         ),
+        red_week_names=red_week_holders(selected_challenge_week.id),
+        diamond_week_names=diamond_week_holders(selected_challenge_week.id),
     )
     write_og_image(chart, selected_challenge_week.id)
     await send_current_chart(ctx)
@@ -140,6 +142,60 @@ async def testpodium_command(ctx: discord.ApplicationContext):
     except Exception as e:
         logging.exception(f"Error sending testpodium message: {e}")
         await ctx.followup.send(f"Error sending message: {str(e)}")
+
+
+@bot.slash_command(
+    name="uncheckin",
+    description="Remove your last check-in from today",
+)
+async def uncheckin(ctx: discord.ApplicationContext):
+    """
+    Clear the invoking user's check-in for today (in their timezone) in the
+    current challenge week, if one exists.
+    """
+    user = getattr(ctx, "author", None) or getattr(ctx, "user", None)
+    if user is None:
+        await ctx.respond(
+            "Could not determine which user invoked this command.",
+            ephemeral=True,
+        )
+        return
+
+    challenger = challenger_by_discord_id(str(user.id))
+    if challenger is None:
+        await ctx.respond(
+            "You’re not currently registered for the challenge, so there’s no check-in to clear.",
+            ephemeral=True,
+        )
+        return
+
+    challenge_week = get_current_challenge_week(challenger.tz)
+    if challenge_week is None:
+        await ctx.respond(
+            "There is no active challenge week right now, so there’s no check-in for today to clear.",
+            ephemeral=True,
+        )
+        return
+
+    deleted_count = with_psycopg(
+        clear_today_checkins_for_challenger(challenger, challenge_week)
+    )
+
+    if deleted_count == 0:
+        await ctx.respond(
+            "You don’t have a check-in for today to clear.",
+            ephemeral=True,
+        )
+        return
+
+    challenge = get_current_challenge()
+    if challenge is not None:
+        medals.update_medal_table(challenge.id, challenge_week.id)
+
+    await ctx.respond(
+        f"<@{user.id}>'s last check-in from today was removed.",
+        ephemeral=False,
+    )
 
 
 @bot.event
