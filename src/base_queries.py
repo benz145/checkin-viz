@@ -141,3 +141,52 @@ def insert_checkin(message, tier, challenger, week_id, day_of_week=None, time=No
         return cur.fetchone().id
 
     return fn
+
+
+def clear_today_checkins_for_challenger(challenger, challenge_week):
+    """
+    Delete all of today's check-ins for the given challenger in the given
+    challenge week, using the challenger's timezone to determine \"today\".
+
+    Returns a function suitable for use with with_psycopg that, when executed
+    in a transaction, deletes any related medals and then the check-ins, and
+    returns the number of deleted check-ins.
+    """
+
+    def fn(conn, cur):
+        # First, find today's check-ins for this challenger and challenge week.
+        select_sql = """
+            select id
+            from checkins
+            where
+                challenger = %s
+                and challenge_week_id = %s
+                and (time at time zone %s)::date = (current_timestamp at time zone %s)::date;
+        """
+        cur.execute(
+            select_sql,
+            (challenger.id, challenge_week.id, challenger.tz, challenger.tz),
+        )
+        rows = cur.fetchall()
+        if not rows:
+            return 0
+
+        checkin_ids = [row.id for row in rows]
+
+        # Delete any medals that reference these check-ins to satisfy FK constraints.
+        delete_medals_sql = """
+            delete from medals
+            where checkin_id = any(%s);
+        """
+        cur.execute(delete_medals_sql, (checkin_ids,))
+
+        # Now delete the check-ins themselves.
+        delete_checkins_sql = """
+            delete from checkins
+            where id = any(%s);
+        """
+        cur.execute(delete_checkins_sql, (checkin_ids,))
+
+        return len(checkin_ids)
+
+    return fn

@@ -63,3 +63,15 @@ The bot and web source code is volumed so changes to the app just require you to
 - Bot: `docker container restart checkin-viz-bot-1`
 
 **NOTE**: When doing local development never test against the production db.
+
+## Discord Bot Commands
+
+The Discord bot supports a small set of slash commands to help manage challenges:
+
+- `/chart`: Display the current challenge chart as an image.
+- `/green`: Check whether the current week is a green week.
+- `/join`: Opt into the current challenge.
+- `/quit`: Opt out of the current challenge.
+- `/calculate_tier`: Open a modal to calculate your check-in tier based on calories and time.
+- `/testpodium`: Test the podium/results message for the most recently ended challenge.
+- `/uncheckin`: Remove **your own** tier check-in for **today**. If you have a check-in today, the bot will delete it and post a public message in the channel saying `@user's check-in from today has been removed.` so everyone can see that the check-in was undone.
