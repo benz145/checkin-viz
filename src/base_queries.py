@@ -145,48 +145,50 @@ def insert_checkin(message, tier, challenger, week_id, day_of_week=None, time=No
 
 def clear_today_checkins_for_challenger(challenger, challenge_week):
     """
-    Delete all of today's check-ins for the given challenger in the given
+    Delete the latest check-in from today for the given challenger in the given
     challenge week, using the challenger's timezone to determine \"today\".
 
     Returns a function suitable for use with with_psycopg that, when executed
-    in a transaction, deletes any related medals and then the check-ins, and
-    returns the number of deleted check-ins.
+    in a transaction, deletes any related medals and then the check-in, and
+    returns the number of deleted check-ins (0 or 1).
     """
 
     def fn(conn, cur):
-        # First, find today's check-ins for this challenger and challenge week.
+        # First, find today's latest check-in for this challenger and challenge week.
         select_sql = """
             select id
             from checkins
             where
                 challenger = %s
                 and challenge_week_id = %s
-                and (time at time zone %s)::date = (current_timestamp at time zone %s)::date;
+                and (time at time zone %s)::date = (current_timestamp at time zone %s)::date
+            order by time at time zone %s desc
+            limit 1;
         """
         cur.execute(
             select_sql,
-            (challenger.id, challenge_week.id, challenger.tz, challenger.tz),
+            (challenger.id, challenge_week.id, challenger.tz, challenger.tz, challenger.tz),
         )
-        rows = cur.fetchall()
-        if not rows:
+        row = cur.fetchone()
+        if not row:
             return 0
 
-        checkin_ids = [row.id for row in rows]
+        checkin_id = row.id
 
-        # Delete any medals that reference these check-ins to satisfy FK constraints.
+        # Delete any medals that reference this check-in to satisfy FK constraints.
         delete_medals_sql = """
             delete from medals
-            where checkin_id = any(%s);
+            where checkin_id = %s;
         """
-        cur.execute(delete_medals_sql, (checkin_ids,))
+        cur.execute(delete_medals_sql, (checkin_id,))
 
-        # Now delete the check-ins themselves.
+        # Now delete the check-in itself.
         delete_checkins_sql = """
             delete from checkins
-            where id = any(%s);
+            where id = %s;
         """
-        cur.execute(delete_checkins_sql, (checkin_ids,))
+        cur.execute(delete_checkins_sql, (checkin_id,))
 
-        return len(checkin_ids)
+        return 1
 
     return fn

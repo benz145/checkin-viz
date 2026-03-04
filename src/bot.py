@@ -146,7 +146,7 @@ async def testpodium_command(ctx: discord.ApplicationContext):
 
 @bot.slash_command(
     name="uncheckin",
-    description="Remove your check-in for today",
+    description="Remove your last check-in from today",
 )
 async def uncheckin(ctx: discord.ApplicationContext):
     """
@@ -193,7 +193,7 @@ async def uncheckin(ctx: discord.ApplicationContext):
         medals.update_medal_table(challenge.id, challenge_week.id)
 
     await ctx.respond(
-        f"<@{user.id}>'s check-in from today has been removed.",
+        f"<@{user.id}>'s last check-in from today was removed.",
         ephemeral=False,
     )
 
