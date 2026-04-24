@@ -12,6 +12,7 @@ import medals
 import slash_commands.quit as quit_slash
 import slash_commands.join as join_slash
 import slash_commands.calc
+import slash_commands.bmr
 from chart import checkin_chart, diamond_week_holders, red_week_holders, week_heat_map_from_checkins, write_og_image
 from rule_sets import calculate_total_score
 import medal_log
@@ -110,6 +111,21 @@ async def join_command(ctx: discord.ApplicationContext):
 )
 async def calc_command(ctx: discord.ApplicationContext):
     await ctx.send_modal(slash_commands.calc.Modal(title="Enter Checkin Details"))
+
+
+@bot.slash_command(
+    name="bmr", description="Calculate and update your BMR"
+)
+async def bmr_command(ctx: discord.ApplicationContext):
+    await slash_commands.bmr.launch_bmr_modal(ctx)
+
+
+@bot.slash_command(
+    name="bmr_reset",
+    description="Reset your BMR profile and restart first-time BMR setup",
+)
+async def bmr_reset_command(ctx: discord.ApplicationContext):
+    await slash_commands.bmr.reset_bmr_profile(ctx)
 
 
 @bot.slash_command(

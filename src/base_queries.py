@@ -30,6 +30,50 @@ def challenger_by_discord_id(discord_id):
     return fetchone("select * from challengers where discord_id = %s", [discord_id])
 
 
+def latest_bmr_log_for_challenger(challenger_id):
+    sql = """
+        select *
+        from bmr_logs
+        where challenger_id = %s
+        order by logged_at desc, id desc
+        limit 1
+    """
+    return fetchone(sql, [challenger_id])
+
+
+def insert_bmr_log_and_update_challenger_bmr(
+    challenger_id, gender, birthday, height_feet, height_inches, weight_lbs, bmr
+):
+    def fn(conn, cur):
+        cur.execute(
+            """
+            insert into bmr_logs
+                (challenger_id, gender, birthday, height_feet, height_inches, weight_lbs, bmr)
+            values
+                (%s, %s, %s, %s, %s, %s, %s)
+            returning *
+            """,
+            [challenger_id, gender, birthday, height_feet, height_inches, weight_lbs, bmr],
+        )
+        inserted = cur.fetchone()
+        cur.execute(
+            "update challengers set bmr = %s where id = %s",
+            [bmr, challenger_id],
+        )
+        return inserted
+
+    return fn
+
+
+def clear_bmr_profile_for_challenger(challenger_id):
+    def fn(conn, cur):
+        cur.execute("delete from bmr_logs where challenger_id = %s", [challenger_id])
+        cur.execute("update challengers set bmr = null where id = %s", [challenger_id])
+        return cur.rowcount
+
+    return fn
+
+
 def total_ante(challenge_id, tier):
     return fetchone(
         "select sum(ante) from challenger_challenges where challenge_id = %s and tier = %s",
