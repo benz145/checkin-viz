@@ -1,8 +1,14 @@
 from rq import cron
 from helpers import fetchall
 from green import determine_if_green
+from auto_knockout import (
+    build_auto_knockout_message,
+    build_auto_knockout_warning_message,
+    run_auto_knockout,
+)
 import discord
 from discord_bot import bot
+import medals
 import os
 
 # from mulligan import check_last_week_for_mulligan_necessity, insert_mulligan_for
@@ -116,6 +122,43 @@ async def challenge_start_message():
 
 
 cron.register(challenge_start_message, queue_name="cron", cron="0 14 * * 1")
+
+
+async def auto_knockout():
+    logging.info("Running auto-knockout")
+    events = run_auto_knockout()
+    message = build_auto_knockout_message(events)
+    warning_message = build_auto_knockout_warning_message(events)
+    if message is None and warning_message is None:
+        logging.info("Auto-knockout completed with no state changes")
+        return
+
+    channel = await get_channel()
+    if channel is None:
+        logging.warning("Cannot send auto-knockout message: channel not found")
+        return
+
+    if message is not None:
+        await channel.send(message)
+    if warning_message is not None:
+        await channel.send(warning_message)
+
+    for challenge_id, challenge_week_id in {
+        (event.challenge_id, event.challenge_week_id)
+        for event in events
+        if event.action in ("mulligan", "knockout")
+    }:
+        try:
+            medals.update_medal_table(challenge_id, challenge_week_id)
+        except Exception:
+            logging.exception(
+                "Auto-knockout medal update failed for challenge %s week %s",
+                challenge_id,
+                challenge_week_id,
+            )
+
+
+cron.register(auto_knockout, queue_name="cron", cron="5 14 * * *")
 
 # def check_mulligans():
 #    logging.info("checking for mulligans")

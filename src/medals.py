@@ -173,19 +173,20 @@ def reconcile_medals(new_medals, current_medals):
     latest_for_week_old = next(
         (m for m in current_medals if m.medal_name == "latest_for_week"), None
     )
-    medals.append(
-        {
-            **latest_for_week_new._asdict(),
-            "steal": (
-                latest_for_week_old.checkin_id
-                if latest_for_week_old is not None
-                and latest_for_week_new.checkin_id != latest_for_week_old.checkin_id
-                and latest_for_week_new.challenge_week_id
-                == latest_for_week_old.challenge_week_id
-                else None
-            ),
-        }
-    )
+    if latest_for_week_new is not None:
+        medals.append(
+            {
+                **latest_for_week_new._asdict(),
+                "steal": (
+                    latest_for_week_old.checkin_id
+                    if latest_for_week_old is not None
+                    and latest_for_week_new.checkin_id != latest_for_week_old.checkin_id
+                    and latest_for_week_new.challenge_week_id
+                    == latest_for_week_old.challenge_week_id
+                    else None
+                ),
+            }
+        )
 
     earliest_for_week_new = next(
         (m for m in new_medals if m.medal_name == "earliest_for_week"), None
@@ -193,19 +194,20 @@ def reconcile_medals(new_medals, current_medals):
     earliest_for_week_old = next(
         (m for m in current_medals if m.medal_name == "earliest_for_week"), None
     )
-    medals.append(
-        {
-            **earliest_for_week_new._asdict(),
-            "steal": (
-                earliest_for_week_old.checkin_id
-                if earliest_for_week_old is not None
-                and earliest_for_week_new.checkin_id != earliest_for_week_old.checkin_id
-                and earliest_for_week_new.challenge_week_id
-                == earliest_for_week_old.challenge_week_id
-                else None
-            ),
-        }
-    )
+    if earliest_for_week_new is not None:
+        medals.append(
+            {
+                **earliest_for_week_new._asdict(),
+                "steal": (
+                    earliest_for_week_old.checkin_id
+                    if earliest_for_week_old is not None
+                    and earliest_for_week_new.checkin_id != earliest_for_week_old.checkin_id
+                    and earliest_for_week_new.challenge_week_id
+                    == earliest_for_week_old.challenge_week_id
+                    else None
+                ),
+            }
+        )
 
     latest_for_challenge_new = next(
         (m for m in new_medals if m.medal_name == "latest_for_challenge"), None
@@ -253,20 +255,21 @@ def reconcile_medals(new_medals, current_medals):
     highest_tier_for_week_old = next(
         (m for m in current_medals if m.medal_name == "highest_tier_week"), None
     )
-    medals.append(
-        {
-            **highest_tier_for_week_new._asdict(),
-            "steal": (
-                highest_tier_for_week_old.checkin_id
-                if highest_tier_for_week_old is not None
-                and highest_tier_for_week_new.checkin_id
-                != highest_tier_for_week_old.checkin_id
-                and highest_tier_for_week_new.challenge_week_id
-                == highest_tier_for_week_old.challenge_week_id
-                else None
-            ),
-        }
-    )
+    if highest_tier_for_week_new is not None:
+        medals.append(
+            {
+                **highest_tier_for_week_new._asdict(),
+                "steal": (
+                    highest_tier_for_week_old.checkin_id
+                    if highest_tier_for_week_old is not None
+                    and highest_tier_for_week_new.checkin_id
+                    != highest_tier_for_week_old.checkin_id
+                    and highest_tier_for_week_new.challenge_week_id
+                    == highest_tier_for_week_old.challenge_week_id
+                    else None
+                ),
+            }
+        )
 
     highest_tier_for_challenge_new = next(
         (m for m in new_medals if m.medal_name == "highest_tier_challenge"), None
@@ -274,18 +277,19 @@ def reconcile_medals(new_medals, current_medals):
     highest_tier_for_challenge_old = next(
         (m for m in current_medals if m.medal_name == "highest_tier_challenge"), None
     )
-    medals.append(
-        {
-            **highest_tier_for_challenge_new._asdict(),
-            "steal": (
-                highest_tier_for_challenge_old.checkin_id
-                if highest_tier_for_challenge_old is not None
-                and highest_tier_for_challenge_new.checkin_id
-                != highest_tier_for_challenge_old.checkin_id
-                else None
-            ),
-        }
-    )
+    if highest_tier_for_challenge_new is not None:
+        medals.append(
+            {
+                **highest_tier_for_challenge_new._asdict(),
+                "steal": (
+                    highest_tier_for_challenge_old.checkin_id
+                    if highest_tier_for_challenge_old is not None
+                    and highest_tier_for_challenge_new.checkin_id
+                    != highest_tier_for_challenge_old.checkin_id
+                    else None
+                ),
+            }
+        )
 
     return medals
 
@@ -294,15 +298,20 @@ def highest_tier_week(challenge_week_id, execute=False):
     sql = """
 SELECT challengers.name as name,
        challengers.id as challenger_id,
-       tier,
+       checkins.tier,
        checkins.id AS checkin_id,
        %(challenge_week_id)s as challenge_week_id,
        time AT TIME ZONE checkins.tz as time,
        'highest_tier_week' as medal_name,
        '💪' as medal_emoji
 FROM checkins
-join challengers on challengers.id = checkins.challenger
-WHERE challenge_week_id = %(challenge_week_id)s
+JOIN challenge_weeks cw ON cw.id = checkins.challenge_week_id
+JOIN challenger_challenges cc ON
+    cc.challenge_id = cw.challenge_id
+    AND cc.challenger_id = checkins.challenger
+JOIN challengers on challengers.id = checkins.challenger
+WHERE checkins.challenge_week_id = %(challenge_week_id)s
+  AND cc.knocked_out = false
 ORDER BY ltrim(checkins.tier, 'T')::INT DESC
 LIMIT 1
 """
@@ -315,7 +324,7 @@ def highest_tier_challenge(challenge_id, execute=False):
     sql = """
 SELECT challengers.name as name,
        challengers.id as challenger_id,
-       tier,
+       checkins.tier,
        checkins.id AS checkin_id,
        challenge_weeks.id AS challenge_week_id,
        time AT TIME ZONE checkins.tz as time,
@@ -323,8 +332,12 @@ SELECT challengers.name as name,
        '🏋' as medal_emoji
 FROM checkins
 JOIN challenge_weeks ON checkins.challenge_week_id = challenge_weeks.id
+JOIN challenger_challenges cc ON
+    cc.challenge_id = challenge_weeks.challenge_id
+    AND cc.challenger_id = checkins.challenger
 join challengers on challengers.id = checkins.challenger
 WHERE challenge_weeks.challenge_id = %(challenge_id)s
+  AND cc.knocked_out = false
 ORDER BY ltrim(checkins.tier, 'T')::INT DESC
 LIMIT 1
 """
@@ -337,7 +350,7 @@ def earliest_for_challenge(challenge_id, execute=False):
     sql = """
 SELECT challengers.name,
        challengers.id as challenger_id,
-       tier,
+       checkins.tier,
        checkins.id AS checkin_id,
        challenge_weeks.id AS challenge_week_id,
        time AT TIME ZONE checkins.tz AS time,
@@ -345,8 +358,12 @@ SELECT challengers.name,
        '🌞' as medal_emoji
 FROM checkins
 JOIN challenge_weeks ON checkins.challenge_week_id = challenge_weeks.id
+JOIN challenger_challenges cc ON
+    cc.challenge_id = challenge_weeks.challenge_id
+    AND cc.challenger_id = checkins.challenger
 join challengers on challengers.id = checkins.challenger
 WHERE challenge_weeks.challenge_id = %(challenge_id)s
+  AND cc.knocked_out = false
 ORDER BY to_char(time AT TIME ZONE checkins.tz, 'HH24:MI:SS') ASC
 LIMIT 1
 """
@@ -359,15 +376,20 @@ def earliest_for_week(challenge_week_id, execute=False):
     sql = """
 SELECT challengers.name,
        challengers.id as challenger_id,
-       tier,
+       checkins.tier,
        checkins.id AS checkin_id,
        checkins.challenge_week_id as challenge_week_id,
        time AT TIME ZONE checkins.tz AS time,
        'earliest_for_week' as medal_name,
        '☀️' as medal_emoji
 FROM checkins
+JOIN challenge_weeks cw ON cw.id = checkins.challenge_week_id
+JOIN challenger_challenges cc ON
+    cc.challenge_id = cw.challenge_id
+    AND cc.challenger_id = checkins.challenger
 join challengers on checkins.challenger = challengers.id
 WHERE checkins.challenge_week_id = %(challenge_week_id)s
+  AND cc.knocked_out = false
 ORDER BY to_char(time AT TIME ZONE checkins.tz, 'HH24:MI:SS') ASC
 LIMIT 1
 """
@@ -380,7 +402,7 @@ def latest_for_challenge(challenge_id, execute=False):
     sql = """
 SELECT challengers.name,
        challengers.id as challenger_id,
-       tier,
+       checkins.tier,
        checkins.id AS checkin_id,
        challenge_weeks.id AS challenge_week_id,
        time AT TIME ZONE checkins.tz AS time,
@@ -388,8 +410,12 @@ SELECT challengers.name,
        '🌚' as medal_emoji
 FROM checkins
 JOIN challenge_weeks ON checkins.challenge_week_id = challenge_weeks.id
+JOIN challenger_challenges cc ON
+    cc.challenge_id = challenge_weeks.challenge_id
+    AND cc.challenger_id = checkins.challenger
 join challengers on challengers.id = checkins.challenger
 WHERE challenge_weeks.challenge_id = %(challenge_id)s
+  AND cc.knocked_out = false
 ORDER BY to_char(time AT TIME ZONE checkins.tz, 'HH24:MI:SS') DESC
 LIMIT 1
 """
@@ -402,15 +428,20 @@ def latest_for_week(challenge_week_id, execute=False):
     sql = """
 SELECT challengers.name,
        challengers.id as challenger_id,
-       tier,
+       checkins.tier,
        checkins.id AS checkin_id,
        checkins.challenge_week_id as challenge_week_id,
        time AT TIME ZONE checkins.tz AS time,
        'latest_for_week' as medal_name,
        '🌙' as medal_emoji
 FROM checkins
+JOIN challenge_weeks cw ON cw.id = checkins.challenge_week_id
+JOIN challenger_challenges cc ON
+    cc.challenge_id = cw.challenge_id
+    AND cc.challenger_id = checkins.challenger
 join challengers on checkins.challenger = challengers.id
 WHERE checkins.challenge_week_id = %(challenge_week_id)s
+  AND cc.knocked_out = false
 ORDER BY to_char(time at TIME ZONE checkins.tz, 'HH24:MI:SS') DESC
 LIMIT 1
 """
@@ -423,15 +454,20 @@ def gold(challenge_week_id, execute=False):
     sql = """
 WITH daily_checkins AS (
     SELECT
-        challenger,
+        checkins.challenger,
         DATE(time AT TIME ZONE checkins.tz) AS checkin_date,
         MAX(time AT TIME ZONE checkins.tz) AS latest_checkin_time,
-        (ARRAY_AGG(id ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_checkin_id,
-        (ARRAY_AGG(tier ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_tier
+        (ARRAY_AGG(checkins.id ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_checkin_id,
+        (ARRAY_AGG(checkins.tier ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_tier
     FROM checkins
-    WHERE challenge_week_id = %(challenge_week_id)s
+    JOIN challenge_weeks cw ON cw.id = checkins.challenge_week_id
+    JOIN challenger_challenges cc ON
+        cc.challenge_id = cw.challenge_id
+        AND cc.challenger_id = checkins.challenger
+    WHERE checkins.challenge_week_id = %(challenge_week_id)s
+      AND cc.knocked_out = false
     GROUP BY
-        challenger,
+        checkins.challenger,
         DATE(time AT TIME ZONE checkins.tz)
 ),
 totals AS (
@@ -467,15 +503,20 @@ def green(challenge_week_id, execute=False):
     sql = """
 WITH daily_checkins AS (
      SELECT
-         challenger,
+         checkins.challenger,
          DATE(time AT TIME ZONE checkins.tz) AS checkin_date,
          MAX(time AT TIME ZONE checkins.tz) AS latest_checkin_time,
-         (ARRAY_AGG(id ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_checkin_id,
-         (ARRAY_AGG(tier ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_tier
+         (ARRAY_AGG(checkins.id ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_checkin_id,
+         (ARRAY_AGG(checkins.tier ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_tier
      FROM checkins
-     WHERE challenge_week_id = %(challenge_week_id)s
+     JOIN challenge_weeks cw ON cw.id = checkins.challenge_week_id
+     JOIN challenger_challenges cc ON
+         cc.challenge_id = cw.challenge_id
+         AND cc.challenger_id = checkins.challenger
+     WHERE checkins.challenge_week_id = %(challenge_week_id)s
+       AND cc.knocked_out = false
      GROUP BY
-         challenger,
+         checkins.challenger,
          DATE(time AT TIME ZONE checkins.tz)
  ),
  totals AS (
@@ -511,16 +552,21 @@ def red(challenge_week_id, execute=False):
     sql = """
 WITH daily_checkins AS (
      SELECT
-         challenger,
+         checkins.challenger,
          DATE(time AT TIME ZONE checkins.tz) AS checkin_date,
          MAX(time AT TIME ZONE checkins.tz) AS latest_checkin_time,
-         (ARRAY_AGG(id ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_checkin_id,
-         (ARRAY_AGG(tier ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_tier
+         (ARRAY_AGG(checkins.id ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_checkin_id,
+         (ARRAY_AGG(checkins.tier ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_tier
      FROM checkins
-     WHERE challenge_week_id = %(challenge_week_id)s
-       AND ltrim(tier, 'T')::INT >= 3
+     JOIN challenge_weeks cw ON cw.id = checkins.challenge_week_id
+     JOIN challenger_challenges cc ON
+         cc.challenge_id = cw.challenge_id
+         AND cc.challenger_id = checkins.challenger
+     WHERE checkins.challenge_week_id = %(challenge_week_id)s
+       AND cc.knocked_out = false
+       AND ltrim(checkins.tier, 'T')::INT >= 3
      GROUP BY
-         challenger,
+         checkins.challenger,
          DATE(time AT TIME ZONE checkins.tz)
  ),
  totals AS (
@@ -556,16 +602,21 @@ def diamond(challenge_week_id, execute=False):
     sql = """
 WITH daily_checkins AS (
      SELECT
-         challenger,
+         checkins.challenger,
          DATE(time AT TIME ZONE checkins.tz) AS checkin_date,
          MAX(time AT TIME ZONE checkins.tz) AS latest_checkin_time,
-         (ARRAY_AGG(id ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_checkin_id,
-         (ARRAY_AGG(tier ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_tier
+         (ARRAY_AGG(checkins.id ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_checkin_id,
+         (ARRAY_AGG(checkins.tier ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_tier
      FROM checkins
-     WHERE challenge_week_id = %(challenge_week_id)s
-       AND ltrim(tier, 'T')::INT >= 3
+     JOIN challenge_weeks cw ON cw.id = checkins.challenge_week_id
+     JOIN challenger_challenges cc ON
+         cc.challenge_id = cw.challenge_id
+         AND cc.challenger_id = checkins.challenger
+     WHERE checkins.challenge_week_id = %(challenge_week_id)s
+       AND cc.knocked_out = false
+       AND ltrim(checkins.tier, 'T')::INT >= 3
      GROUP BY
-         challenger,
+         checkins.challenger,
          DATE(time AT TIME ZONE checkins.tz)
  ),
  totals AS (
@@ -600,15 +651,20 @@ def first_to_green(challenge_week_id, execute=False):
     sql = """
 WITH daily_checkins AS (
     SELECT
-        challenger,
+        checkins.challenger,
         DATE(time AT TIME ZONE checkins.tz) AS checkin_date,
         MAX(time AT TIME ZONE checkins.tz) AS latest_checkin_time,
-        (ARRAY_AGG(id ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_checkin_id,
-        (ARRAY_AGG(tier ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_tier
+        (ARRAY_AGG(checkins.id ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_checkin_id,
+        (ARRAY_AGG(checkins.tier ORDER BY time AT TIME ZONE checkins.tz DESC))[1] AS latest_tier
     FROM checkins
-    WHERE challenge_week_id = %(challenge_week_id)s
+    JOIN challenge_weeks cw ON cw.id = checkins.challenge_week_id
+    JOIN challenger_challenges cc ON
+        cc.challenge_id = cw.challenge_id
+        AND cc.challenger_id = checkins.challenger
+    WHERE checkins.challenge_week_id = %(challenge_week_id)s
+      AND cc.knocked_out = false
     GROUP BY
-        challenger,
+        checkins.challenger,
         DATE(time AT TIME ZONE checkins.tz)
 ),
 totals AS (
@@ -664,6 +720,10 @@ daily_checkins AS (
     FROM checkins ci
     JOIN challenge_weeks cw ON ci.challenge_week_id = cw.id
     JOIN non_bye_weeks nbw ON nbw.id = cw.id
+    JOIN challenger_challenges cc ON
+        cc.challenge_id = cw.challenge_id
+        AND cc.challenger_id = ci.challenger
+        AND cc.knocked_out = false
     GROUP BY cw.id, ci.challenger, DATE(ci.time AT TIME ZONE ci.tz)
 ),
 totals AS (
@@ -745,6 +805,10 @@ daily_checkins AS (
     FROM checkins ci
     JOIN challenge_weeks cw ON ci.challenge_week_id = cw.id
     JOIN non_bye_weeks nbw ON nbw.id = cw.id
+    JOIN challenger_challenges cc ON
+        cc.challenge_id = cw.challenge_id
+        AND cc.challenger_id = ci.challenger
+        AND cc.knocked_out = false
     GROUP BY cw.id, ci.challenger, DATE(ci.time AT TIME ZONE ci.tz)
 ),
 totals AS (
