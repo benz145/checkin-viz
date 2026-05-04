@@ -121,14 +121,6 @@ async def bmr_command(ctx: discord.ApplicationContext):
 
 
 @bot.slash_command(
-    name="bmr_reset",
-    description="Reset your BMR profile and restart first-time BMR setup",
-)
-async def bmr_reset_command(ctx: discord.ApplicationContext):
-    await slash_commands.bmr.reset_bmr_profile(ctx)
-
-
-@bot.slash_command(
     name="testpodium",
     description="Test the podium results message for the most recently ended challenge",
 )
