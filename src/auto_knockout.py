@@ -24,12 +24,58 @@ class AutoKnockoutEvent:
     required_checkins: int
     checkin_count: int
     challenge_week_id: int
+    discord_id: str | None = None
     mulligan_checkin_id: int | None = None
     mulligan_day: str | None = None
+    remaining_checkin_days: tuple[str, ...] = ()
+    has_mulligan_available: bool = False
 
 
 def required_checkins_for_week(is_green_week):
     return 5 if is_green_week else 2
+
+
+def remaining_week_days(run_date, week_end):
+    days_remaining = min(max((week_end - run_date).days + 1, 0), 7)
+    return tuple(
+        (run_date + timedelta(days=day_offset)).strftime("%A")
+        for day_offset in range(days_remaining)
+    )
+
+
+def effective_remaining_week_days(remaining_checkin_days, run_day, current_day_checked_in):
+    return tuple(
+        day
+        for day in remaining_checkin_days
+        if not (current_day_checked_in and day == run_day)
+    )
+
+
+def should_send_first_no_slack_warning(challenge_week, run_date, required_checkins, checked_in_days):
+    allowed_missed_days = 7 - required_checkins
+    checked_in_days = set(checked_in_days or [])
+    prior_days = []
+    days_elapsed = min(max((run_date - challenge_week.start).days, 0), 7)
+
+    for day_offset in range(days_elapsed):
+        prior_days.append((challenge_week.start + timedelta(days=day_offset)).strftime("%A"))
+
+    missed_prior_days = [day for day in prior_days if day not in checked_in_days]
+    if len(missed_prior_days) != allowed_missed_days:
+        return False
+
+    return len(missed_prior_days) > 0 and missed_prior_days[-1] == prior_days[-1]
+
+
+def format_day_list(days):
+    days = list(days)
+    if len(days) == 0:
+        return ""
+    if len(days) == 1:
+        return days[0]
+    if len(days) == 2:
+        return f"{days[0]} and {days[1]}"
+    return f"{', '.join(days[:-1])}, and {days[-1]}"
 
 
 def first_missed_day(week_start, checked_in_days):
@@ -66,12 +112,37 @@ def get_previous_challenge_week(cur):
     return cur.fetchone()
 
 
+def get_current_challenge_week(cur):
+    cur.execute(
+        """
+        select
+            c.id as challenge_id,
+            cw.id as challenge_week_id,
+            cw.start,
+            cw."end",
+            coalesce(cw.green, false) as green,
+            cw.bye_week
+        from challenge_weeks cw
+        join challenges c on c.id = cw.challenge_id
+        where
+            (current_timestamp at time zone 'America/New_York')::date >= cw.start
+            and (current_timestamp at time zone 'America/New_York')::date <= cw."end"
+            and (current_timestamp at time zone 'America/New_York')::date >= c.start
+            and (current_timestamp at time zone 'America/New_York')::date <= c."end"
+        order by cw.start desc
+        limit 1;
+        """
+    )
+    return cur.fetchone()
+
+
 def get_participants_for_week(cur, challenge_id, challenge_week_id):
     cur.execute(
         """
         select
             ch.id,
             ch.name,
+            ch.discord_id,
             ch.tz,
             cc.mulligan,
             count(distinct c.day_of_week) filter (
@@ -92,10 +163,49 @@ def get_participants_for_week(cur, challenge_id, challenge_week_id):
             cc.challenge_id = %s
             and cc.knocked_out = false
             and coalesce(cc.tier, '') != 'T0'
-        group by ch.id, ch.name, ch.tz, cc.mulligan
+        group by ch.id, ch.name, ch.discord_id, ch.tz, cc.mulligan
         order by ch.name;
         """,
         (challenge_week_id, challenge_id),
+    )
+    return cur.fetchall()
+
+
+def get_alert_participants_for_week(cur, challenge_id, challenge_week_id, run_day):
+    cur.execute(
+        """
+        select
+            ch.id,
+            ch.name,
+            ch.discord_id,
+            ch.tz,
+            cc.mulligan,
+            count(distinct c.day_of_week) filter (
+                where c.tier != 'T0'
+            ) as checkin_count,
+            array_remove(
+                array_agg(distinct c.day_of_week) filter (
+                    where c.tier != 'T0'
+                ),
+                null
+            ) as checked_in_days,
+            coalesce(
+                bool_or(c.tier != 'T0' and c.day_of_week = %s),
+                false
+            ) as current_day_checked_in
+        from challenger_challenges cc
+        join challengers ch on ch.id = cc.challenger_id
+        left join checkins c on
+            c.challenger = ch.id
+            and c.challenge_week_id = %s
+        where
+            cc.challenge_id = %s
+            and cc.knocked_out = false
+            and coalesce(cc.tier, '') != 'T0'
+        group by ch.id, ch.name, ch.discord_id, ch.tz, cc.mulligan
+        order by ch.name;
+        """,
+        (run_day, challenge_week_id, challenge_id),
     )
     return cur.fetchall()
 
@@ -170,6 +280,7 @@ def apply_auto_knockout_for_week(cur, challenge_week, participants):
                     required_checkins=required_checkins,
                     checkin_count=checkin_count,
                     challenge_week_id=challenge_week.challenge_week_id,
+                    discord_id=participant.discord_id,
                     mulligan_checkin_id=mulligan_id,
                     mulligan_day=mulligan_day,
                 )
@@ -185,10 +296,110 @@ def apply_auto_knockout_for_week(cur, challenge_week, participants):
                     required_checkins=required_checkins,
                     checkin_count=checkin_count,
                     challenge_week_id=challenge_week.challenge_week_id,
+                    discord_id=participant.discord_id,
                 )
             )
 
     return events
+
+
+def build_auto_knockout_alerts_for_week(challenge_week, run_date, participants):
+    if challenge_week.bye_week:
+        return []
+
+    required_checkins = required_checkins_for_week(challenge_week.green)
+    remaining_days = remaining_week_days(run_date, challenge_week.end)
+    run_day = run_date.strftime("%A")
+    events = []
+
+    for participant in participants:
+        checkin_count = participant.checkin_count or 0
+        if checkin_count >= required_checkins:
+            continue
+
+        effective_remaining_days = effective_remaining_week_days(
+            remaining_days,
+            run_day,
+            participant.current_day_checked_in,
+        )
+        if len(effective_remaining_days) == 0:
+            continue
+
+        needed_checkins = required_checkins - checkin_count
+        if needed_checkins < len(effective_remaining_days):
+            continue
+
+        if not should_send_first_no_slack_warning(
+            challenge_week,
+            run_date,
+            required_checkins,
+            participant.checked_in_days,
+        ):
+            continue
+
+        events.append(
+            AutoKnockoutEvent(
+                action="warning",
+                challenge_id=challenge_week.challenge_id,
+                challenger_id=participant.id,
+                name=participant.name,
+                required_checkins=required_checkins,
+                checkin_count=checkin_count,
+                challenge_week_id=challenge_week.challenge_week_id,
+                discord_id=participant.discord_id,
+                remaining_checkin_days=effective_remaining_days,
+                has_mulligan_available=participant.mulligan is None,
+            )
+        )
+
+    return events
+
+
+def build_auto_knockout_alert_message(events):
+    warnings = [event for event in events if event.action == "warning"]
+    if len(warnings) == 0:
+        return None
+
+    lines = []
+    for event in warnings:
+        days = format_day_list(event.remaining_checkin_days)
+        consequence = (
+            "to avoid using a mulligan or being knocked out"
+            if event.has_mulligan_available
+            else "to avoid knockout"
+        )
+        lines.append(
+            f"<@{event.discord_id}> must check in on {days} {consequence}."
+        )
+
+    return "## Knockout warnings\n" + "\n".join(lines)
+
+
+def build_auto_knockout_reconciliation_message(events):
+    mulligans = [event for event in events if event.action == "mulligan"]
+    knockouts = [event for event in events if event.action == "knockout"]
+    sections = []
+
+    if mulligans:
+        lines = [
+            f"<@{event.discord_id}> was saved from knockout by their mulligan "
+            f"on {event.mulligan_day}."
+            for event in mulligans
+        ]
+        sections.append("## Mulligans used\n" + "\n".join(lines))
+
+    if knockouts:
+        lines = [
+            f"<@{event.discord_id}> has been knocked out with "
+            f"{event.checkin_count}/{event.required_checkins} T1+ check-ins this week."
+            for event in knockouts
+        ]
+        sections.append("## Knockouts\n" + "\n".join(lines))
+
+    if len(sections) == 0:
+        return None
+
+    return "\n\n".join(sections)
 
 
 def run_auto_knockout():
@@ -206,5 +417,37 @@ def run_auto_knockout():
             challenge_week.challenge_week_id,
         )
         return apply_auto_knockout_for_week(cur, challenge_week, participants)
+
+    return with_psycopg(fn)
+
+
+def run_auto_knockout_alerts():
+    from helpers import with_psycopg
+
+    def fn(conn, cur):
+        challenge_week = get_current_challenge_week(cur)
+        if challenge_week is None:
+            logging.info("Auto-knockout alerts skipped: no current challenge week")
+            return []
+
+        if challenge_week.bye_week:
+            logging.info(
+                "Auto-knockout alerts skipped: challenge week %s is a bye week",
+                challenge_week.challenge_week_id,
+            )
+            return []
+
+        run_date = datetime.now(tz=ZoneInfo("America/New_York")).date()
+        participants = get_alert_participants_for_week(
+            cur,
+            challenge_week.challenge_id,
+            challenge_week.challenge_week_id,
+            run_date.strftime("%A"),
+        )
+        return build_auto_knockout_alerts_for_week(
+            challenge_week,
+            run_date,
+            participants,
+        )
 
     return with_psycopg(fn)
