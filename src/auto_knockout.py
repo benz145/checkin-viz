@@ -104,7 +104,9 @@ def get_previous_challenge_week(cur):
             cw.bye_week
         from challenge_weeks cw
         join challenges c on c.id = cw.challenge_id
-        where cw."end" < (current_timestamp at time zone 'America/New_York')::date
+        where cw."end" = (
+            (current_timestamp at time zone 'America/New_York')::date - interval '1 day'
+        )::date
         order by cw."end" desc
         limit 1;
         """
@@ -145,6 +147,7 @@ def get_participants_for_week(cur, challenge_id, challenge_week_id):
             ch.discord_id,
             ch.tz,
             cc.mulligan,
+            mulligan_checkin.challenge_week_id as mulligan_challenge_week_id,
             count(distinct c.day_of_week) filter (
                 where c.tier != 'T0'
             ) as checkin_count,
@@ -156,6 +159,7 @@ def get_participants_for_week(cur, challenge_id, challenge_week_id):
             ) as checked_in_days
         from challenger_challenges cc
         join challengers ch on ch.id = cc.challenger_id
+        left join checkins mulligan_checkin on mulligan_checkin.id = cc.mulligan
         left join checkins c on
             c.challenger = ch.id
             and c.challenge_week_id = %s
@@ -163,7 +167,13 @@ def get_participants_for_week(cur, challenge_id, challenge_week_id):
             cc.challenge_id = %s
             and cc.knocked_out = false
             and coalesce(cc.tier, '') != 'T0'
-        group by ch.id, ch.name, ch.discord_id, ch.tz, cc.mulligan
+        group by
+            ch.id,
+            ch.name,
+            ch.discord_id,
+            ch.tz,
+            cc.mulligan,
+            mulligan_checkin.challenge_week_id
         order by ch.name;
         """,
         (challenge_week_id, challenge_id),
@@ -267,6 +277,13 @@ def apply_auto_knockout_for_week(cur, challenge_week, participants):
     for participant in participants:
         checkin_count = participant.checkin_count or 0
         if checkin_count >= required_checkins:
+            continue
+
+        if (
+            participant.mulligan is not None
+            and getattr(participant, "mulligan_challenge_week_id", None)
+            == challenge_week.challenge_week_id
+        ):
             continue
 
         if participant.mulligan is None:
@@ -409,6 +426,13 @@ def run_auto_knockout():
         challenge_week = get_previous_challenge_week(cur)
         if challenge_week is None:
             logging.info("Auto-knockout skipped: no completed challenge week")
+            return []
+
+        if challenge_week.bye_week:
+            logging.info(
+                "Auto-knockout skipped: challenge week %s is a bye week",
+                challenge_week.challenge_week_id,
+            )
             return []
 
         participants = get_participants_for_week(

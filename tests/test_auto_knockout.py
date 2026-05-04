@@ -4,6 +4,7 @@ import unittest
 from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 
 os.environ.setdefault("DB_CONNECT_STRING", "postgresql://postgres:password@localhost/projects")
@@ -19,18 +20,20 @@ from auto_knockout import (
     first_missed_day,
     get_alert_participants_for_week,
     get_participants_for_week,
+    get_previous_challenge_week,
+    run_auto_knockout,
     should_send_first_no_slack_warning,
 )
 
 
-def challenge_week(green=False):
+def challenge_week(green=False, bye_week=False):
     return SimpleNamespace(
         challenge_id=1,
         challenge_week_id=10,
         start=date(2026, 4, 27),
         end=date(2026, 5, 3),
         green=green,
-        bye_week=False,
+        bye_week=bye_week,
     )
 
 
@@ -42,6 +45,7 @@ def participant(
     challenger_id=1,
     name="Test User",
     current_day_checked_in=False,
+    mulligan_challenge_week_id=None,
 ):
     return SimpleNamespace(
         id=challenger_id,
@@ -52,6 +56,7 @@ def participant(
         checkin_count=checkin_count,
         checked_in_days=checked_in_days or [],
         current_day_checked_in=current_day_checked_in,
+        mulligan_challenge_week_id=mulligan_challenge_week_id,
     )
 
 
@@ -68,6 +73,21 @@ class FakeCursor:
 
     def fetchall(self):
         return []
+
+
+class FakeRunCursor:
+    def __init__(self, challenge_week_result):
+        self.queries = []
+        self.challenge_week_result = challenge_week_result
+
+    def execute(self, sql, params=None):
+        self.queries.append((sql, params))
+
+    def fetchone(self):
+        return self.challenge_week_result
+
+    def fetchall(self):
+        raise AssertionError("participants should not be fetched")
 
 
 def query_texts(cur):
@@ -118,6 +138,45 @@ class AutoKnockoutTests(unittest.TestCase):
         self.assertEqual(events[0].discord_id, "1001")
         self.assertIn("set knocked_out = true", query_texts(cur)[0])
 
+    def test_rerun_skips_challenger_with_mulligan_from_same_week(self):
+        cur = FakeCursor()
+
+        events = apply_auto_knockout_for_week(
+            cur,
+            challenge_week(),
+            [
+                participant(
+                    checkin_count=1,
+                    checked_in_days=["Monday"],
+                    mulligan=123,
+                    mulligan_challenge_week_id=10,
+                )
+            ],
+        )
+
+        self.assertEqual(events, [])
+        self.assertEqual(cur.queries, [])
+
+    def test_prior_week_mulligan_still_allows_knockout(self):
+        cur = FakeCursor()
+
+        events = apply_auto_knockout_for_week(
+            cur,
+            challenge_week(),
+            [
+                participant(
+                    checkin_count=1,
+                    checked_in_days=["Monday"],
+                    mulligan=123,
+                    mulligan_challenge_week_id=9,
+                )
+            ],
+        )
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].action, "knockout")
+        self.assertIn("set knocked_out = true", query_texts(cur)[0])
+
     def test_zero_checkin_challenger_gets_mulligan_on_first_day(self):
         cur = FakeCursor()
 
@@ -164,6 +223,42 @@ class AutoKnockoutTests(unittest.TestCase):
 
         self.assertIn("ch.discord_id", query_texts(cur)[0])
         self.assertIn("cc.knocked_out = false", query_texts(cur)[0])
+
+    def test_participant_query_exposes_mulligan_challenge_week(self):
+        cur = FakeCursor()
+
+        get_participants_for_week(cur, challenge_id=1, challenge_week_id=10)
+
+        self.assertIn(
+            "mulligan_checkin.challenge_week_id as mulligan_challenge_week_id",
+            query_texts(cur)[0],
+        )
+        self.assertIn("left join checkins mulligan_checkin", query_texts(cur)[0])
+
+    def test_previous_challenge_week_only_targets_week_ending_yesterday(self):
+        cur = FakeCursor()
+
+        get_previous_challenge_week(cur)
+
+        self.assertIn('cw."end" = (', query_texts(cur)[0])
+        self.assertIn("interval '1 day'", query_texts(cur)[0])
+
+    def test_auto_knockout_skips_bye_week(self):
+        captured = {}
+
+        def fake_with_psycopg(fn):
+            cur = FakeRunCursor(challenge_week(bye_week=True))
+            captured["cur"] = cur
+            return fn(None, cur)
+
+        with patch.dict(
+            sys.modules,
+            {"helpers": SimpleNamespace(with_psycopg=fake_with_psycopg)},
+        ):
+            events = run_auto_knockout()
+
+        self.assertEqual(events, [])
+        self.assertEqual(len(captured["cur"].queries), 1)
 
     def test_normal_week_alert_when_no_mulligan_challenger_has_no_slack(self):
         events = build_auto_knockout_alerts_for_week(
