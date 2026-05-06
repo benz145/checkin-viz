@@ -1,6 +1,7 @@
 from rq import cron
 from helpers import fetchall
 from green import determine_if_green
+from auto_knockout import run_auto_knockout
 import discord
 from discord_bot import bot
 import os
@@ -106,6 +107,15 @@ async def challenge_start_message():
 
 
 cron.register(challenge_start_message, queue_name="cron", cron="0 14 * * 1")
+
+
+async def auto_knockout():
+    logging.info("Running auto-knockout")
+    events = run_auto_knockout()
+    logging.info("Auto-knockout completed with %s state changes", len(events))
+
+
+cron.register(auto_knockout, queue_name="cron", cron="5 14 * * 1")
 
 # def check_mulligans():
 #    logging.info("checking for mulligans")
