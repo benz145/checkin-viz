@@ -30,6 +30,14 @@ def challenger_by_discord_id(discord_id):
     return fetchone("select * from challengers where discord_id = %s", [discord_id])
 
 
+def update_challenger_bmr(challenger_id, bmr):
+    def fn(conn, cur):
+        cur.execute("update challengers set bmr = %s where id = %s", [bmr, challenger_id])
+        return cur.rowcount
+
+    return fn
+
+
 def total_ante(challenge_id, tier):
     return fetchone(
         "select sum(ante) from challenger_challenges where challenge_id = %s and tier = %s",

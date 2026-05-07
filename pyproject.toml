@@ -18,7 +18,7 @@ python-dotenv = "*"
 pytz = "*"
 flask-cors = "^4.0.1"
 twilio = "^9.2.3"
-py-cord = {extras = ["speed"], version = "^2.6.1"}
+py-cord = {version = ">=2.8.0rc2,<2.9", extras = ["speed"]}
 simpleeval = "^1.0.3"
 rq = "^2.6.1"
 valkey = "^6.1.1"
