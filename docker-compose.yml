@@ -2,6 +2,8 @@ services:
   main:
     build: 
       context: .
+      args:
+        VERSION_NUMBER: ${VERSION_NUMBER:-__VERSION_NUMBER__}
     platform: linux/amd64
     restart: unless-stopped
     environment:

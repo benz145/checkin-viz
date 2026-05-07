@@ -4,7 +4,7 @@ import os
 import itertools
 from datetime import datetime, timedelta, date
 import json
-from flask import Flask, render_template, request, url_for, redirect
+from flask import Flask, Response, render_template, request, url_for, redirect
 import logging
 from rule_sets import calculate_total_score
 from chart import checkin_chart, diamond_week_holders, red_week_holders, week_heat_map_from_checkins, write_og_image
@@ -19,8 +19,58 @@ from green import determine_if_green
 
 LOGLEVEL = os.environ.get("LOGLEVEL", "WARNING").upper()
 logging.basicConfig(level="DEBUG")
+__VERSION_NUMBER__ = "__VERSION_NUMBER__"
 
 app = Flask(__name__)
+
+
+def get_version_number():
+    return __VERSION_NUMBER__
+
+
+@app.route("/version")
+def version():
+    version_number = json.dumps(get_version_number()).replace("<", "\\u003c")
+    return Response(
+        f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Version</title>
+</head>
+<body>
+  <dl>
+    <dt>Date:</dt>
+    <dd id="version-date"></dd>
+    <dt>Time:</dt>
+    <dd id="version-time"></dd>
+    <dt>SHA:</dt>
+    <dd id="version-sha"></dd>
+  </dl>
+  <script>
+    const rawVersion = {version_number};
+    const [timestamp, sha = ""] = rawVersion.split("|");
+    const buildDate = new Date(timestamp);
+
+    document.getElementById("version-date").textContent =
+      new Intl.DateTimeFormat(undefined, {{
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      }}).format(buildDate);
+    document.getElementById("version-time").textContent =
+      new Intl.DateTimeFormat(undefined, {{
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+        timeZoneName: "shortGeneric",
+      }}).format(buildDate);
+    document.getElementById("version-sha").textContent = sha;
+  </script>
+</body>
+</html>""",
+        mimetype="text/html",
+    )
 
 
 @app.route("/details")

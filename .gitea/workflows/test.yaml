@@ -11,7 +11,8 @@ jobs:
       - name: List files in the repository
         run: ls ${{ gitea.workspace }}
       - name: Build
-        run: docker compose build
+        run: |
+          VERSION_NUMBER="$(date -u +%Y-%m-%dT%H:%M:%SZ)|$(git rev-parse --short HEAD)" docker compose build
       - name: Push
         run: docker compose push
       - name: Update container

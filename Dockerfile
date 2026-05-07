@@ -14,6 +14,9 @@ COPY scripts/entrypoint /
 COPY src /src
 COPY src/static/*.css /src/static/
 
+ARG VERSION_NUMBER=__VERSION_NUMBER__
+RUN python -c "import os; from pathlib import Path; p = Path('/src/main.py'); p.write_text(p.read_text().replace('\"__VERSION_NUMBER__\"', repr(os.environ['VERSION_NUMBER'])))"
+
 RUN poetry install --no-interaction --no-ansi
 
 ENTRYPOINT [ "poetry", "run", "./entrypoint" ]
