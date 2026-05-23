@@ -19,8 +19,42 @@ from green import determine_if_green
 
 LOGLEVEL = os.environ.get("LOGLEVEL", "WARNING").upper()
 logging.basicConfig(level="DEBUG")
+__VERSION_NUMBER__ = "__VERSION_NUMBER__"
 
 app = Flask(__name__)
+
+
+def get_version_number():
+    return __VERSION_NUMBER__
+
+
+def version_display_fields(version_number):
+    if version_number == "__VERSION_NUMBER__":
+        return "unknown", "unknown", "unknown"
+
+    timestamp, _, sha = version_number.partition("|")
+    try:
+        build_time = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return "unknown", "unknown", sha or "unknown"
+
+    version_date = f"{build_time.strftime('%B')} {build_time.day}, {build_time.year}"
+    hour = build_time.hour % 12 or 12
+    version_time = f"{hour}:{build_time.strftime('%M %p')} UTC"
+    return version_date, version_time, sha or "unknown"
+
+
+@app.route("/version")
+def version():
+    version_date, version_time, version_sha = version_display_fields(
+        get_version_number()
+    )
+    return render_template(
+        "version.html",
+        version_date=version_date,
+        version_time=version_time,
+        version_sha=version_sha,
+    )
 
 
 @app.route("/details")
