@@ -56,10 +56,7 @@ services:
   # the bot and the app don't need to wait for the db
   # although if you hit them right away you'll get an error
   web:
-    build: 
-      context: .
-      args:
-        VERSION_NUMBER: ${VERSION_NUMBER:-__VERSION_NUMBER__}
+    build: .
     platform: linux/amd64
     restart: unless-stopped
     ports:
