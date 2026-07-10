@@ -85,15 +85,19 @@ def mulligan_used_on_latest_elapsed_day(challenge_week, run_date, participant):
     return getattr(participant, "mulligan_day", None) == latest_elapsed_day
 
 
-def format_day_list(days):
-    days = list(days)
-    if len(days) == 0:
+def format_natural_language_list(items):
+    items = list(items)
+    if len(items) == 0:
         return ""
-    if len(days) == 1:
-        return days[0]
-    if len(days) == 2:
-        return f"{days[0]} and {days[1]}"
-    return f"{', '.join(days[:-1])}, and {days[-1]}"
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return f"{', '.join(items[:-1])}, and {items[-1]}"
+
+
+def format_day_list(days):
+    return format_natural_language_list(days)
 
 
 def first_missed_day(week_start, checked_in_days):
@@ -411,17 +415,24 @@ def build_auto_knockout_alert_message(events):
     if len(warnings) == 0:
         return None
 
-    lines = []
+    groups = {}
     for event in warnings:
-        days = format_day_list(event.remaining_checkin_days)
+        key = (event.remaining_checkin_days, event.has_mulligan_available)
+        groups.setdefault(key, []).append(event)
+
+    lines = []
+    for (remaining_checkin_days, has_mulligan_available), group in groups.items():
+        mentions = format_natural_language_list(
+            f"<@{event.discord_id}>" for event in group
+        )
+        days = format_day_list(remaining_checkin_days)
+        emoji = "⚠️" if has_mulligan_available else "🚨"
         consequence = (
             "to avoid using a mulligan"
-            if event.has_mulligan_available
+            if has_mulligan_available
             else "to avoid being knocked out"
         )
-        lines.append(
-            f"<@{event.discord_id}> must check in on {days} {consequence}."
-        )
+        lines.append(f"{emoji} {mentions} must check in on {days} {consequence}.")
 
     return "## Knockout warnings\n" + "\n".join(lines)
 
