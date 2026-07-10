@@ -46,6 +46,7 @@ def participant(
     name="Test User",
     current_day_checked_in=False,
     mulligan_challenge_week_id=None,
+    mulligan_day=None,
 ):
     return SimpleNamespace(
         id=challenger_id,
@@ -57,6 +58,7 @@ def participant(
         checked_in_days=checked_in_days or [],
         current_day_checked_in=current_day_checked_in,
         mulligan_challenge_week_id=mulligan_challenge_week_id,
+        mulligan_day=mulligan_day,
     )
 
 
@@ -316,6 +318,42 @@ class AutoKnockoutTests(unittest.TestCase):
 
         self.assertEqual(events, [])
 
+    def test_sunday_alert_after_saturday_mulligan_warns_of_knockout(self):
+        saturday_events = build_auto_knockout_alerts_for_week(
+            challenge_week(),
+            date(2026, 5, 2),
+            [participant(checkin_count=0, mulligan=None)],
+        )
+
+        self.assertEqual(len(saturday_events), 1)
+        self.assertTrue(saturday_events[0].has_mulligan_available)
+        self.assertIn(
+            "to avoid using a mulligan",
+            build_auto_knockout_alert_message(saturday_events),
+        )
+
+        sunday_events = build_auto_knockout_alerts_for_week(
+            challenge_week(),
+            date(2026, 5, 3),
+            [
+                participant(
+                    checkin_count=1,
+                    checked_in_days=["Saturday"],
+                    mulligan=99,
+                    mulligan_challenge_week_id=10,
+                    mulligan_day="Saturday",
+                )
+            ],
+        )
+
+        self.assertEqual(len(sunday_events), 1)
+        self.assertFalse(sunday_events[0].has_mulligan_available)
+        self.assertEqual(sunday_events[0].remaining_checkin_days, ("Sunday",))
+        self.assertIn(
+            "to avoid being knocked out",
+            build_auto_knockout_alert_message(sunday_events),
+        )
+
     def test_first_no_slack_warning_requires_latest_miss_to_create_no_slack(self):
         week = challenge_week(green=True)
 
@@ -349,6 +387,15 @@ class AutoKnockoutTests(unittest.TestCase):
         self.assertIn("cc.knocked_out = false", query_texts(cur)[0])
         self.assertIn("coalesce(cc.tier, '') != 'T0'", query_texts(cur)[0])
         self.assertIn("checked_in_days", query_texts(cur)[0])
+        self.assertIn(
+            "mulligan_checkin.challenge_week_id as mulligan_challenge_week_id",
+            query_texts(cur)[0],
+        )
+        self.assertIn(
+            "mulligan_checkin.day_of_week as mulligan_day",
+            query_texts(cur)[0],
+        )
+        self.assertIn("left join checkins mulligan_checkin", query_texts(cur)[0])
 
     def test_alert_message_mentions_discord_ids_and_remaining_days(self):
         events = build_auto_knockout_alerts_for_week(
@@ -361,7 +408,8 @@ class AutoKnockoutTests(unittest.TestCase):
 
         self.assertIn("<@1001>", message)
         self.assertIn("Saturday and Sunday", message)
-        self.assertIn("to avoid knockout", message)
+        self.assertIn("to avoid being knocked out", message)
+        self.assertNotIn("mulligan", message)
 
     def test_alert_message_mentions_mulligan_risk_when_mulligan_available(self):
         events = build_auto_knockout_alerts_for_week(
@@ -372,7 +420,31 @@ class AutoKnockoutTests(unittest.TestCase):
 
         message = build_auto_knockout_alert_message(events)
 
-        self.assertIn("to avoid using a mulligan or being knocked out", message)
+        self.assertIn("to avoid using a mulligan", message)
+        self.assertNotIn("being knocked out", message)
+
+    def test_alert_message_uses_distinct_consequences_per_user(self):
+        events = build_auto_knockout_alerts_for_week(
+            challenge_week(),
+            date(2026, 5, 2),
+            [
+                participant(checkin_count=0, mulligan=None),
+                participant(checkin_count=0, mulligan=99, challenger_id=2),
+            ],
+        )
+
+        message = build_auto_knockout_alert_message(events)
+
+        self.assertIn(
+            "<@1001> must check in on Saturday and Sunday "
+            "to avoid using a mulligan.",
+            message,
+        )
+        self.assertIn(
+            "<@1002> must check in on Saturday and Sunday "
+            "to avoid being knocked out.",
+            message,
+        )
 
     def test_reconciliation_message_mentions_mulligan_used(self):
         message = build_auto_knockout_reconciliation_message(
