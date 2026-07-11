@@ -123,6 +123,7 @@ class AutoKnockoutTests(unittest.TestCase):
         self.assertEqual(events[0].discord_id, "1001")
         self.assertIn("insert into checkins", query_texts(cur)[0])
         self.assertIn("set mulligan", query_texts(cur)[1])
+        self.assertNotIn("set knocked_out = true", " ".join(query_texts(cur)))
 
     def test_knockout_set_when_below_requirement_with_existing_mulligan(self):
         cur = FakeCursor()
@@ -138,7 +139,7 @@ class AutoKnockoutTests(unittest.TestCase):
         self.assertEqual(events[0].discord_id, "1001")
         self.assertIn("set knocked_out = true", query_texts(cur)[0])
 
-    def test_rerun_skips_challenger_with_mulligan_from_same_week(self):
+    def test_saturday_mulligan_does_not_prevent_knockout_after_sunday_miss(self):
         cur = FakeCursor()
 
         events = apply_auto_knockout_for_week(
@@ -147,15 +148,17 @@ class AutoKnockoutTests(unittest.TestCase):
             [
                 participant(
                     checkin_count=1,
-                    checked_in_days=["Monday"],
+                    checked_in_days=["Saturday"],
                     mulligan=123,
                     mulligan_challenge_week_id=10,
                 )
             ],
         )
 
-        self.assertEqual(events, [])
-        self.assertEqual(cur.queries, [])
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].action, "knockout")
+        self.assertEqual(events[0].checkin_count, 1)
+        self.assertIn("set knocked_out = true", query_texts(cur)[0])
 
     def test_prior_week_mulligan_still_allows_knockout(self):
         cur = FakeCursor()
@@ -177,7 +180,7 @@ class AutoKnockoutTests(unittest.TestCase):
         self.assertEqual(events[0].action, "knockout")
         self.assertIn("set knocked_out = true", query_texts(cur)[0])
 
-    def test_zero_checkin_challenger_gets_mulligan_on_first_day(self):
+    def test_zero_checkin_challenger_is_knocked_out_without_using_mulligan(self):
         cur = FakeCursor()
 
         events = apply_auto_knockout_for_week(
@@ -186,8 +189,12 @@ class AutoKnockoutTests(unittest.TestCase):
             [participant(checkin_count=0)],
         )
 
-        self.assertEqual(events[0].action, "mulligan")
-        self.assertEqual(events[0].mulligan_day, "Monday")
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].action, "knockout")
+        self.assertEqual(len(cur.queries), 1)
+        self.assertIn("set knocked_out = true", query_texts(cur)[0])
+        self.assertNotIn("insert into checkins", query_texts(cur)[0])
+        self.assertNotIn("set mulligan", query_texts(cur)[0])
 
     def test_green_week_requires_five_checkins(self):
         cur = FakeCursor()
