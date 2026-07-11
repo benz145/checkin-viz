@@ -461,7 +461,7 @@ def build_auto_knockout_reconciliation_message(events):
     if len(sections) == 0:
         return None
 
-    return "\n\n".join(sections)
+    return "\n".join(sections)
 
 
 def run_auto_knockout():

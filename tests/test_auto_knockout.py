@@ -457,6 +457,7 @@ class AutoKnockoutTests(unittest.TestCase):
             "to avoid being knocked out.",
         )
         self.assertEqual(message.count("\n"), 2)
+        self.assertNotIn("\n\n", message)
         self.assertFalse(message.endswith("\n"))
 
     def test_alert_message_keeps_different_checkin_days_separate(self):
@@ -504,11 +505,12 @@ class AutoKnockoutTests(unittest.TestCase):
             ]
         )
 
-        self.assertIn("## Mulligans used", message)
-        self.assertIn(
-            "<@123> was saved from knockout by their mulligan on Tuesday.",
+        self.assertEqual(
             message,
+            "## Mulligans used\n"
+            "<@123> was saved from knockout by their mulligan on Tuesday.",
         )
+        self.assertFalse(message.endswith("\n"))
 
     def test_reconciliation_message_mentions_knockout(self):
         message = build_auto_knockout_reconciliation_message(
@@ -526,11 +528,50 @@ class AutoKnockoutTests(unittest.TestCase):
             ]
         )
 
-        self.assertIn("## Knockouts", message)
-        self.assertIn(
-            "<@123> has been knocked out with 3/5 T1+ check-ins this week.",
+        self.assertEqual(
             message,
+            "## Knockouts\n"
+            "<@123> has been knocked out with 3/5 T1+ check-ins this week.",
         )
+        self.assertFalse(message.endswith("\n"))
+
+    def test_reconciliation_message_uses_one_line_break_between_sections(self):
+        message = build_auto_knockout_reconciliation_message(
+            [
+                AutoKnockoutEvent(
+                    action="mulligan",
+                    challenge_id=1,
+                    challenger_id=1,
+                    name="Mulligan User",
+                    required_checkins=2,
+                    checkin_count=1,
+                    challenge_week_id=10,
+                    discord_id="123",
+                    mulligan_checkin_id=456,
+                    mulligan_day="Tuesday",
+                ),
+                AutoKnockoutEvent(
+                    action="knockout",
+                    challenge_id=1,
+                    challenger_id=2,
+                    name="Knocked Out User",
+                    required_checkins=2,
+                    checkin_count=1,
+                    challenge_week_id=10,
+                    discord_id="456",
+                ),
+            ]
+        )
+
+        self.assertEqual(
+            message,
+            "## Mulligans used\n"
+            "<@123> was saved from knockout by their mulligan on Tuesday.\n"
+            "## Knockouts\n"
+            "<@456> has been knocked out with 1/2 T1+ check-ins this week.",
+        )
+        self.assertNotIn("\n\n", message)
+        self.assertFalse(message.endswith("\n"))
 
 
 if __name__ == "__main__":
