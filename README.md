@@ -64,6 +64,33 @@ The bot and web source code is volumed so changes to the app just require you to
 
 **NOTE**: When doing local development never test against the production db.
 
+### Auto-knockout reconciliation schema
+
+The database schema is managed manually. Run this once in production before
+deploying code that uses weekly auto-knockout reconciliation:
+
+```sql
+begin;
+
+alter table challenge_weeks
+add column auto_knockout_reconciled_at timestamptz;
+
+update challenge_weeks
+set auto_knockout_reconciled_at = current_timestamp
+where
+    auto_knockout_reconciled_at is null
+    and "end" < (
+        current_timestamp at time zone 'America/New_York'
+    )::date;
+
+commit;
+```
+
+The backfill marks historical weeks as already reconciled so deployment does
+not apply current challenge membership to past weeks. Deploy the application
+only after this SQL succeeds, then re-run the local database seed so local
+development uses the updated production schema.
+
 ## Discord Bot Commands
 
 The Discord bot supports a small set of slash commands to help manage challenges:

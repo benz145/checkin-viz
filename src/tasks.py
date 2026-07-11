@@ -5,7 +5,6 @@ from auto_knockout import (
     build_auto_knockout_alert_message,
     build_auto_knockout_reconciliation_message,
     run_auto_knockout,
-    run_auto_knockout_alerts,
 )
 import discord
 from discord_bot import bot
@@ -117,35 +116,21 @@ cron.register(challenge_start_message, queue_name="cron", cron="0 14 * * 1")
 async def auto_knockout():
     logging.info("Running auto-knockout")
     events = run_auto_knockout()
-    message = build_auto_knockout_reconciliation_message(events)
-    if message is not None:
+    reconciliation_message = build_auto_knockout_reconciliation_message(events)
+    alert_message = build_auto_knockout_alert_message(events)
+    if reconciliation_message is not None or alert_message is not None:
         channel = await get_channel()
         if channel is None:
             logging.warning("Cannot send auto-knockout message: channel not found")
         else:
-            await channel.send(message)
-    logging.info("Auto-knockout completed with %s state changes", len(events))
+            if reconciliation_message is not None:
+                await channel.send(reconciliation_message)
+            if alert_message is not None:
+                await channel.send(alert_message)
+    logging.info("Auto-knockout completed with %s events", len(events))
 
 
-cron.register(auto_knockout, queue_name="cron", cron="5 14 * * 1")
-
-
-async def auto_knockout_alerts():
-    logging.info("Running auto-knockout alerts")
-    events = run_auto_knockout_alerts()
-    message = build_auto_knockout_alert_message(events)
-    if message is None:
-        logging.info("Auto-knockout alerts completed with no warnings")
-        return
-
-    channel = await get_channel()
-    if channel is None:
-        logging.warning("Cannot send auto-knockout alert message: channel not found")
-        return
-    await channel.send(message)
-
-
-cron.register(auto_knockout_alerts, queue_name="cron", cron="10 14 * * *")
+cron.register(auto_knockout, queue_name="cron", cron="5 14 * * *")
 
 # def check_mulligans():
 #    logging.info("checking for mulligans")
