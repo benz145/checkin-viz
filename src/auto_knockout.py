@@ -311,14 +311,8 @@ def apply_auto_knockout_for_week(cur, challenge_week, participants):
         if checkin_count >= required_checkins:
             continue
 
-        if (
-            participant.mulligan is not None
-            and getattr(participant, "mulligan_challenge_week_id", None)
-            == challenge_week.challenge_week_id
-        ):
-            continue
-
-        if participant.mulligan is None:
+        checkin_shortfall = required_checkins - checkin_count
+        if participant.mulligan is None and checkin_shortfall == 1:
             mulligan_id, mulligan_day = insert_mulligan(cur, participant, challenge_week)
             events.append(
                 AutoKnockoutEvent(
@@ -334,20 +328,21 @@ def apply_auto_knockout_for_week(cur, challenge_week, participants):
                     mulligan_day=mulligan_day,
                 )
             )
-        else:
-            knock_out_challenger(cur, participant, challenge_week)
-            events.append(
-                AutoKnockoutEvent(
-                    action="knockout",
-                    challenge_id=challenge_week.challenge_id,
-                    challenger_id=participant.id,
-                    name=participant.name,
-                    required_checkins=required_checkins,
-                    checkin_count=checkin_count,
-                    challenge_week_id=challenge_week.challenge_week_id,
-                    discord_id=participant.discord_id,
-                )
+            continue
+
+        knock_out_challenger(cur, participant, challenge_week)
+        events.append(
+            AutoKnockoutEvent(
+                action="knockout",
+                challenge_id=challenge_week.challenge_id,
+                challenger_id=participant.id,
+                name=participant.name,
+                required_checkins=required_checkins,
+                checkin_count=checkin_count,
+                challenge_week_id=challenge_week.challenge_week_id,
+                discord_id=participant.discord_id,
             )
+        )
 
     return events
 
