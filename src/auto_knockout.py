@@ -67,15 +67,46 @@ def should_send_first_no_slack_warning(challenge_week, run_date, required_checki
     return len(missed_prior_days) > 0 and missed_prior_days[-1] == prior_days[-1]
 
 
-def format_day_list(days):
-    days = list(days)
-    if len(days) == 0:
+def mulligan_used_on_latest_elapsed_day(challenge_week, run_date, participant):
+    """
+    True when a this-week mulligan should trigger a consequence-update warning.
+
+    The mulligan check-in may sit on an earlier missed day (first_missed_day),
+    so we treat the latest elapsed day as uncovered by a *real* check-in when
+    it is absent from checked_in_days excluding the mulligan day itself.
+    """
+    if (
+        participant.mulligan is None
+        or getattr(participant, "mulligan_challenge_week_id", None)
+        != challenge_week.challenge_week_id
+    ):
+        return False
+
+    days_elapsed = min(max((run_date - challenge_week.start).days, 0), 7)
+    if days_elapsed == 0:
+        return False
+
+    latest_elapsed_day = (
+        challenge_week.start + timedelta(days=days_elapsed - 1)
+    ).strftime("%A")
+    mulligan_day = getattr(participant, "mulligan_day", None)
+    real_checked_in_days = set(participant.checked_in_days or []) - {mulligan_day}
+    return latest_elapsed_day not in real_checked_in_days
+
+
+def format_natural_language_list(items):
+    items = list(items)
+    if len(items) == 0:
         return ""
-    if len(days) == 1:
-        return days[0]
-    if len(days) == 2:
-        return f"{days[0]} and {days[1]}"
-    return f"{', '.join(days[:-1])}, and {days[-1]}"
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return f"{', '.join(items[:-1])}, and {items[-1]}"
+
+
+def format_day_list(days):
+    return format_natural_language_list(days)
 
 
 def first_missed_day(week_start, checked_in_days):
@@ -191,6 +222,8 @@ def get_alert_participants_for_week(cur, challenge_id, challenge_week_id, run_da
             ch.discord_id,
             ch.tz,
             cc.mulligan,
+            mulligan_checkin.challenge_week_id as mulligan_challenge_week_id,
+            mulligan_checkin.day_of_week as mulligan_day,
             count(distinct c.day_of_week) filter (
                 where c.tier != 'T0'
             ) as checkin_count,
@@ -206,6 +239,7 @@ def get_alert_participants_for_week(cur, challenge_id, challenge_week_id, run_da
             ) as current_day_checked_in
         from challenger_challenges cc
         join challengers ch on ch.id = cc.challenger_id
+        left join checkins mulligan_checkin on mulligan_checkin.id = cc.mulligan
         left join checkins c on
             c.challenger = ch.id
             and c.challenge_week_id = %s
@@ -213,7 +247,14 @@ def get_alert_participants_for_week(cur, challenge_id, challenge_week_id, run_da
             cc.challenge_id = %s
             and cc.knocked_out = false
             and coalesce(cc.tier, '') != 'T0'
-        group by ch.id, ch.name, ch.discord_id, ch.tz, cc.mulligan
+        group by
+            ch.id,
+            ch.name,
+            ch.discord_id,
+            ch.tz,
+            cc.mulligan,
+            mulligan_checkin.challenge_week_id,
+            mulligan_checkin.day_of_week
         order by ch.name;
         """,
         (run_day, challenge_week_id, challenge_id),
@@ -357,12 +398,18 @@ def build_auto_knockout_alerts_for_week(challenge_week, run_date, participants):
         if needed_checkins != len(effective_remaining_days):
             continue
 
-        if not should_send_first_no_slack_warning(
+        is_first_no_slack_warning = should_send_first_no_slack_warning(
             challenge_week,
             run_date,
             required_checkins,
             participant.checked_in_days,
-        ):
+        )
+        consequence_changed_after_mulligan = mulligan_used_on_latest_elapsed_day(
+            challenge_week,
+            run_date,
+            participant,
+        )
+        if not is_first_no_slack_warning and not consequence_changed_after_mulligan:
             continue
 
         events.append(
@@ -388,19 +435,32 @@ def build_auto_knockout_alert_message(events):
     if len(warnings) == 0:
         return None
 
-    lines = []
+    groups = {}
     for event in warnings:
-        days = format_day_list(event.remaining_checkin_days)
-        consequence = (
-            "to avoid using a mulligan or being knocked out"
-            if event.has_mulligan_available
-            else "to avoid knockout"
-        )
-        lines.append(
-            f"<@{event.discord_id}> must check in on {days} {consequence}."
-        )
+        key = (event.remaining_checkin_days, event.has_mulligan_available)
+        groups.setdefault(key, []).append(event)
 
-    return "## Knockout warnings\n" + "\n".join(lines)
+    # Knockout-risk warnings (no mulligan left) before mulligan-use warnings.
+    ordered_groups = sorted(
+        groups.items(),
+        key=lambda item: (item[0][1], item[0][0]),
+    )
+
+    lines = []
+    for (remaining_checkin_days, has_mulligan_available), group in ordered_groups:
+        mentions = format_natural_language_list(
+            f"<@{event.discord_id}>" for event in group
+        )
+        days = format_day_list(remaining_checkin_days)
+        emoji = "⚠️" if has_mulligan_available else "🚨"
+        consequence = (
+            "to avoid using a mulligan"
+            if has_mulligan_available
+            else "to avoid being knocked out"
+        )
+        lines.append(f"- {emoji} {mentions} must check in on {days} {consequence}.")
+
+    return "## Warnings\n" + "\n".join(lines)
 
 
 def build_auto_knockout_reconciliation_message(events):
@@ -408,26 +468,26 @@ def build_auto_knockout_reconciliation_message(events):
     knockouts = [event for event in events if event.action == "knockout"]
     sections = []
 
-    if mulligans:
-        lines = [
-            f"<@{event.discord_id}> was saved from knockout by their mulligan "
-            f"on {event.mulligan_day}."
-            for event in mulligans
-        ]
-        sections.append("## Mulligans used\n" + "\n".join(lines))
-
     if knockouts:
         lines = [
-            f"<@{event.discord_id}> has been knocked out with "
+            f"- <@{event.discord_id}> has been knocked out with "
             f"{event.checkin_count}/{event.required_checkins} T1+ check-ins this week."
             for event in knockouts
         ]
         sections.append("## Knockouts\n" + "\n".join(lines))
 
+    if mulligans:
+        lines = [
+            f"- <@{event.discord_id}> was saved from knockout by their mulligan "
+            f"on {event.mulligan_day}."
+            for event in mulligans
+        ]
+        sections.append("## Saved\n" + "\n".join(lines))
+
     if len(sections) == 0:
         return None
 
-    return "\n\n".join(sections)
+    return "\n".join(sections)
 
 
 def build_auto_knockout_daily_message(action_events, warning_events):
@@ -444,7 +504,7 @@ def build_auto_knockout_daily_message(action_events, warning_events):
     if len(sections) == 0:
         return None
 
-    return "\n\n".join(sections)
+    return "\n".join(sections)
 
 
 def run_auto_knockout():

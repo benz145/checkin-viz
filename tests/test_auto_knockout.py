@@ -51,6 +51,8 @@ def participant(
     challenger_id=1,
     name="Test User",
     current_day_checked_in=False,
+    mulligan_challenge_week_id=None,
+    mulligan_day=None,
 ):
     return SimpleNamespace(
         id=challenger_id,
@@ -61,6 +63,8 @@ def participant(
         checkin_count=checkin_count,
         checked_in_days=checked_in_days or [],
         current_day_checked_in=current_day_checked_in,
+        mulligan_challenge_week_id=mulligan_challenge_week_id,
+        mulligan_day=mulligan_day,
     )
 
 
@@ -506,6 +510,70 @@ class AutoKnockoutTests(unittest.TestCase):
             )
         )
 
+    def test_sunday_alert_after_saturday_mulligan_warns_of_knockout(self):
+        saturday_events = build_auto_knockout_alerts_for_week(
+            challenge_week(),
+            date(2026, 5, 2),
+            [participant(checkin_count=0, mulligan=None)],
+        )
+
+        self.assertEqual(len(saturday_events), 1)
+        self.assertTrue(saturday_events[0].has_mulligan_available)
+        self.assertIn(
+            "to avoid using a mulligan",
+            build_auto_knockout_alert_message(saturday_events),
+        )
+
+        # Daily auto-mulligan places on first_missed_day (Monday), not Saturday.
+        # Latest elapsed day (Saturday) is still uncovered by a real check-in,
+        # so the consequence-update warning still fires.
+        sunday_events = build_auto_knockout_alerts_for_week(
+            challenge_week(),
+            date(2026, 5, 3),
+            [
+                participant(
+                    checkin_count=1,
+                    checked_in_days=["Monday"],
+                    mulligan=99,
+                    mulligan_challenge_week_id=10,
+                    mulligan_day="Monday",
+                )
+            ],
+        )
+
+        self.assertEqual(len(sunday_events), 1)
+        self.assertFalse(sunday_events[0].has_mulligan_available)
+        self.assertEqual(sunday_events[0].remaining_checkin_days, ("Sunday",))
+        self.assertIn(
+            "to avoid being knocked out",
+            build_auto_knockout_alert_message(sunday_events),
+        )
+
+    def test_post_mulligan_warning_when_mulligan_fills_latest_elapsed_day(self):
+        # first_no_slack is false because Saturday (latest elapsed) is checked
+        # in via the mulligan; the adapted helper still fires because Saturday
+        # is not covered by a real check-in.
+        events = build_auto_knockout_alerts_for_week(
+            challenge_week(),
+            date(2026, 5, 3),
+            [
+                participant(
+                    checkin_count=1,
+                    checked_in_days=["Saturday"],
+                    mulligan=99,
+                    mulligan_challenge_week_id=10,
+                    mulligan_day="Saturday",
+                )
+            ],
+        )
+
+        self.assertEqual(len(events), 1)
+        self.assertFalse(events[0].has_mulligan_available)
+        self.assertIn(
+            "to avoid being knocked out",
+            build_auto_knockout_alert_message(events),
+        )
+
     def test_alert_query_skips_knocked_out_and_t0_challengers(self):
         cur = FakeCursor()
 
@@ -519,6 +587,15 @@ class AutoKnockoutTests(unittest.TestCase):
         self.assertIn("cc.knocked_out = false", query_texts(cur)[0])
         self.assertIn("coalesce(cc.tier, '') != 'T0'", query_texts(cur)[0])
         self.assertIn("checked_in_days", query_texts(cur)[0])
+        self.assertIn(
+            "mulligan_checkin.challenge_week_id as mulligan_challenge_week_id",
+            query_texts(cur)[0],
+        )
+        self.assertIn(
+            "mulligan_checkin.day_of_week as mulligan_day",
+            query_texts(cur)[0],
+        )
+        self.assertIn("left join checkins mulligan_checkin", query_texts(cur)[0])
 
     def test_alert_message_mentions_discord_ids_and_remaining_days(self):
         events = build_auto_knockout_alerts_for_week(
@@ -529,9 +606,14 @@ class AutoKnockoutTests(unittest.TestCase):
 
         message = build_auto_knockout_alert_message(events)
 
-        self.assertIn("<@1001>", message)
-        self.assertIn("Saturday and Sunday", message)
-        self.assertIn("to avoid knockout", message)
+        self.assertEqual(
+            message,
+            "## Warnings\n"
+            "- 🚨 <@1001> must check in on Saturday and Sunday "
+            "to avoid being knocked out.",
+        )
+        self.assertNotIn("mulligan", message)
+        self.assertFalse(message.endswith("\n"))
 
     def test_alert_message_mentions_mulligan_risk_when_mulligan_available(self):
         events = build_auto_knockout_alerts_for_week(
@@ -542,7 +624,68 @@ class AutoKnockoutTests(unittest.TestCase):
 
         message = build_auto_knockout_alert_message(events)
 
-        self.assertIn("to avoid using a mulligan or being knocked out", message)
+        self.assertEqual(
+            message,
+            "## Warnings\n"
+            "- ⚠️ <@1001> must check in on Saturday and Sunday "
+            "to avoid using a mulligan.",
+        )
+        self.assertNotIn("being knocked out", message)
+        self.assertFalse(message.endswith("\n"))
+
+    def test_alert_message_groups_users_with_identical_conditions(self):
+        events = build_auto_knockout_alerts_for_week(
+            challenge_week(),
+            date(2026, 5, 2),
+            [
+                participant(checkin_count=0, mulligan=None),
+                participant(checkin_count=0, mulligan=None, challenger_id=2),
+                participant(checkin_count=0, mulligan=None, challenger_id=3),
+                participant(checkin_count=0, mulligan=99, challenger_id=4),
+                participant(checkin_count=0, mulligan=99, challenger_id=5),
+            ],
+        )
+
+        message = build_auto_knockout_alert_message(events)
+
+        self.assertEqual(
+            message,
+            "## Warnings\n"
+            "- 🚨 <@1004> and <@1005> must check in on Saturday and Sunday "
+            "to avoid being knocked out.\n"
+            "- ⚠️ <@1001>, <@1002>, and <@1003> must check in on "
+            "Saturday and Sunday to avoid using a mulligan.",
+        )
+        self.assertEqual(message.count("\n"), 2)
+        self.assertNotIn("\n\n", message)
+        self.assertFalse(message.endswith("\n"))
+
+    def test_alert_message_keeps_different_checkin_days_separate(self):
+        events = build_auto_knockout_alerts_for_week(
+            challenge_week(),
+            date(2026, 5, 2),
+            [
+                participant(checkin_count=0, mulligan=None),
+                participant(
+                    checkin_count=1,
+                    checked_in_days=["Saturday"],
+                    current_day_checked_in=True,
+                    mulligan=None,
+                    challenger_id=2,
+                ),
+            ],
+        )
+
+        message = build_auto_knockout_alert_message(events)
+
+        self.assertEqual(
+            message,
+            "## Warnings\n"
+            "- ⚠️ <@1001> must check in on Saturday and Sunday "
+            "to avoid using a mulligan.\n"
+            "- ⚠️ <@1002> must check in on Sunday to avoid using a mulligan.",
+        )
+        self.assertFalse(message.endswith("\n"))
 
     def test_alert_still_sent_after_same_week_mulligan(self):
         # A same-week mulligan no longer forgives the week: with 1/2 (the
@@ -550,7 +693,15 @@ class AutoKnockoutTests(unittest.TestCase):
         events = build_auto_knockout_alerts_for_week(
             challenge_week(),
             date(2026, 5, 3),
-            [participant(checkin_count=1, checked_in_days=["Monday"], mulligan=50)],
+            [
+                participant(
+                    checkin_count=1,
+                    checked_in_days=["Monday"],
+                    mulligan=50,
+                    mulligan_challenge_week_id=10,
+                    mulligan_day="Monday",
+                )
+            ],
         )
 
         self.assertEqual(len(events), 1)
@@ -579,11 +730,15 @@ class AutoKnockoutTests(unittest.TestCase):
 
         message = build_auto_knockout_daily_message(action_events, warning_events)
 
-        self.assertIn("## Knockouts", message)
-        self.assertIn("<@111>", message)
-        self.assertIn("## Knockout warnings", message)
-        self.assertIn("<@1002>", message)
-        self.assertLess(message.index("## Knockouts"), message.index("## Knockout warnings"))
+        self.assertEqual(
+            message,
+            "## Knockouts\n"
+            "- <@111> has been knocked out with 0/2 T1+ check-ins this week.\n"
+            "## Warnings\n"
+            "- 🚨 <@1002> must check in on Saturday and Sunday "
+            "to avoid being knocked out.",
+        )
+        self.assertNotIn("\n\n", message)
 
     def test_daily_message_with_only_warnings(self):
         warning_events = build_auto_knockout_alerts_for_week(
@@ -594,7 +749,7 @@ class AutoKnockoutTests(unittest.TestCase):
 
         message = build_auto_knockout_daily_message([], warning_events)
 
-        self.assertIn("## Knockout warnings", message)
+        self.assertIn("## Warnings", message)
         self.assertNotIn("## Knockouts\n", message)
 
     def test_daily_message_none_when_no_events(self):
@@ -618,11 +773,12 @@ class AutoKnockoutTests(unittest.TestCase):
             ]
         )
 
-        self.assertIn("## Mulligans used", message)
-        self.assertIn(
-            "<@123> was saved from knockout by their mulligan on Tuesday.",
+        self.assertEqual(
             message,
+            "## Saved\n"
+            "- <@123> was saved from knockout by their mulligan on Tuesday.",
         )
+        self.assertFalse(message.endswith("\n"))
 
     def test_reconciliation_message_mentions_knockout(self):
         message = build_auto_knockout_reconciliation_message(
@@ -640,11 +796,50 @@ class AutoKnockoutTests(unittest.TestCase):
             ]
         )
 
-        self.assertIn("## Knockouts", message)
-        self.assertIn(
-            "<@123> has been knocked out with 3/5 T1+ check-ins this week.",
+        self.assertEqual(
             message,
+            "## Knockouts\n"
+            "- <@123> has been knocked out with 3/5 T1+ check-ins this week.",
         )
+        self.assertFalse(message.endswith("\n"))
+
+    def test_reconciliation_message_uses_one_line_break_between_sections(self):
+        message = build_auto_knockout_reconciliation_message(
+            [
+                AutoKnockoutEvent(
+                    action="mulligan",
+                    challenge_id=1,
+                    challenger_id=1,
+                    name="Mulligan User",
+                    required_checkins=2,
+                    checkin_count=1,
+                    challenge_week_id=10,
+                    discord_id="123",
+                    mulligan_checkin_id=456,
+                    mulligan_day="Tuesday",
+                ),
+                AutoKnockoutEvent(
+                    action="knockout",
+                    challenge_id=1,
+                    challenger_id=2,
+                    name="Knocked Out User",
+                    required_checkins=2,
+                    checkin_count=1,
+                    challenge_week_id=10,
+                    discord_id="456",
+                ),
+            ]
+        )
+
+        self.assertEqual(
+            message,
+            "## Knockouts\n"
+            "- <@456> has been knocked out with 1/2 T1+ check-ins this week.\n"
+            "## Saved\n"
+            "- <@123> was saved from knockout by their mulligan on Tuesday.",
+        )
+        self.assertNotIn("\n\n", message)
+        self.assertFalse(message.endswith("\n"))
 
 
 if __name__ == "__main__":
