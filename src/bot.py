@@ -121,10 +121,10 @@ async def bmr_command(ctx: discord.ApplicationContext):
 
 
 @bot.slash_command(
-    name="testpodium",
+    name="podium-test",
     description="Test the podium results message for the most recently ended challenge",
 )
-async def testpodium_command(ctx: discord.ApplicationContext):
+async def podium_test_command(ctx: discord.ApplicationContext):
     """Send the results message for the most recently ended challenge."""
     from slash_commands.testpodium import (
         get_most_recently_ended_challenge,
@@ -148,8 +148,30 @@ async def testpodium_command(ctx: discord.ApplicationContext):
     try:
         await ctx.followup.send(msg)
     except Exception as e:
-        logging.exception(f"Error sending testpodium message: {e}")
+        logging.exception(f"Error sending podium-test message: {e}")
         await ctx.followup.send(f"Error sending message: {str(e)}")
+
+
+@bot.slash_command(
+    name="warning-test",
+    description="Send a mock auto-knockout warning/knockout message for formatting tests",
+)
+async def warning_test_command(ctx: discord.ApplicationContext):
+    from slash_commands.warning_test import build_warning_test_message
+
+    user = getattr(ctx, "author", None) or getattr(ctx, "user", None)
+    if user is None:
+        await ctx.respond(
+            "Could not determine which user invoked this command.",
+            ephemeral=True,
+        )
+        return
+
+    try:
+        await ctx.respond(build_warning_test_message(str(user.id)))
+    except Exception as e:
+        logging.exception(f"Error sending warning-test message: {e}")
+        await ctx.respond(f"Error sending message: {str(e)}", ephemeral=True)
 
 
 @bot.slash_command(
