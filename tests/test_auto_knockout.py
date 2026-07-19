@@ -236,6 +236,7 @@ class AutoKnockoutTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0].action, "mulligan")
         self.assertEqual(events[0].mulligan_day, "Monday")
+        self.assertEqual(events[0].remaining_checkin_days, ("Sunday",))
         self.assertIn("insert into checkins", query_texts(cur)[0])
 
     def test_midweek_knockout_when_doomed_with_mulligan_spent(self):
@@ -755,7 +756,7 @@ class AutoKnockoutTests(unittest.TestCase):
     def test_daily_message_none_when_no_events(self):
         self.assertIsNone(build_auto_knockout_daily_message([], []))
 
-    def test_reconciliation_message_mentions_mulligan_used(self):
+    def test_reconciliation_message_omits_mulligans(self):
         message = build_auto_knockout_reconciliation_message(
             [
                 AutoKnockoutEvent(
@@ -769,16 +770,12 @@ class AutoKnockoutTests(unittest.TestCase):
                     discord_id="123",
                     mulligan_checkin_id=456,
                     mulligan_day="Tuesday",
+                    remaining_checkin_days=("Sunday",),
                 )
             ]
         )
 
-        self.assertEqual(
-            message,
-            "## Saved\n"
-            "- <@123> was saved from knockout by their mulligan on Tuesday.",
-        )
-        self.assertFalse(message.endswith("\n"))
+        self.assertIsNone(message)
 
     def test_reconciliation_message_mentions_knockout(self):
         message = build_auto_knockout_reconciliation_message(
@@ -803,43 +800,153 @@ class AutoKnockoutTests(unittest.TestCase):
         )
         self.assertFalse(message.endswith("\n"))
 
-    def test_reconciliation_message_uses_one_line_break_between_sections(self):
-        message = build_auto_knockout_reconciliation_message(
+    def test_warning_message_includes_mulligan_save(self):
+        message = build_auto_knockout_alert_message(
             [
                 AutoKnockoutEvent(
                     action="mulligan",
                     challenge_id=1,
                     challenger_id=1,
-                    name="Mulligan User",
+                    name="Test User",
                     required_checkins=2,
-                    checkin_count=1,
+                    checkin_count=0,
                     challenge_week_id=10,
                     discord_id="123",
                     mulligan_checkin_id=456,
-                    mulligan_day="Tuesday",
+                    mulligan_day="Saturday",
+                    remaining_checkin_days=("Sunday",),
+                )
+            ]
+        )
+
+        self.assertEqual(
+            message,
+            "## Warnings\n"
+            "- <@123> was saved by a mulligan on Saturday and must check in "
+            "on Sunday to avoid knockout.",
+        )
+
+    def test_warning_message_groups_matching_mulligan_saves(self):
+        message = build_auto_knockout_alert_message(
+            [
+                AutoKnockoutEvent(
+                    action="mulligan",
+                    challenge_id=1,
+                    challenger_id=1,
+                    name="Ben",
+                    required_checkins=2,
+                    checkin_count=0,
+                    challenge_week_id=10,
+                    discord_id="111",
+                    mulligan_checkin_id=1,
+                    mulligan_day="Saturday",
+                    remaining_checkin_days=("Sunday",),
                 ),
                 AutoKnockoutEvent(
-                    action="knockout",
+                    action="mulligan",
                     challenge_id=1,
                     challenger_id=2,
-                    name="Knocked Out User",
+                    name="Austin",
                     required_checkins=2,
-                    checkin_count=1,
+                    checkin_count=0,
                     challenge_week_id=10,
-                    discord_id="456",
+                    discord_id="222",
+                    mulligan_checkin_id=2,
+                    mulligan_day="Saturday",
+                    remaining_checkin_days=("Sunday",),
+                ),
+                AutoKnockoutEvent(
+                    action="mulligan",
+                    challenge_id=1,
+                    challenger_id=3,
+                    name="Mark",
+                    required_checkins=2,
+                    checkin_count=0,
+                    challenge_week_id=10,
+                    discord_id="333",
+                    mulligan_checkin_id=3,
+                    mulligan_day="Saturday",
+                    remaining_checkin_days=("Sunday",),
                 ),
             ]
         )
 
         self.assertEqual(
             message,
-            "## Knockouts\n"
-            "- <@456> has been knocked out with 1/2 T1+ check-ins this week.\n"
-            "## Saved\n"
-            "- <@123> was saved from knockout by their mulligan on Tuesday.",
+            "## Warnings\n"
+            "- <@111>, <@222>, and <@333> were saved by a mulligan on Saturday "
+            "and must check in on Sunday to avoid a knockout.",
         )
-        self.assertNotIn("\n\n", message)
-        self.assertFalse(message.endswith("\n"))
+
+    def test_daily_message_puts_mulligan_saves_in_warnings(self):
+        action_events = [
+            AutoKnockoutEvent(
+                action="knockout",
+                challenge_id=1,
+                challenger_id=1,
+                name="Knocked Out User",
+                required_checkins=2,
+                checkin_count=0,
+                challenge_week_id=10,
+                discord_id="111",
+            ),
+            AutoKnockoutEvent(
+                action="mulligan",
+                challenge_id=1,
+                challenger_id=2,
+                name="Saved User",
+                required_checkins=2,
+                checkin_count=0,
+                challenge_week_id=10,
+                discord_id="222",
+                mulligan_checkin_id=9,
+                mulligan_day="Saturday",
+                remaining_checkin_days=("Sunday",),
+            ),
+        ]
+        # Same challenger also got a post-mulligan warning from the alert pass;
+        # the daily builder should drop that duplicate.
+        warning_events = [
+            AutoKnockoutEvent(
+                action="warning",
+                challenge_id=1,
+                challenger_id=2,
+                name="Saved User",
+                required_checkins=2,
+                checkin_count=1,
+                challenge_week_id=10,
+                discord_id="222",
+                remaining_checkin_days=("Sunday",),
+                has_mulligan_available=False,
+            ),
+            AutoKnockoutEvent(
+                action="warning",
+                challenge_id=1,
+                challenger_id=3,
+                name="Warned User",
+                required_checkins=2,
+                checkin_count=0,
+                challenge_week_id=10,
+                discord_id="333",
+                remaining_checkin_days=("Saturday", "Sunday"),
+                has_mulligan_available=True,
+            ),
+        ]
+
+        message = build_auto_knockout_daily_message(action_events, warning_events)
+
+        self.assertEqual(
+            message,
+            "## Knockouts\n"
+            "- <@111> has been knocked out with 0/2 T1+ check-ins this week.\n"
+            "## Warnings\n"
+            "- <@222> was saved by a mulligan on Saturday and must check in "
+            "on Sunday to avoid knockout.\n"
+            "- ⚠️ <@333> must check in on Saturday and Sunday "
+            "to avoid using a mulligan.",
+        )
+        self.assertNotIn("## Saved", message)
+        self.assertNotIn("🚨 <@222>", message)
 
 
 if __name__ == "__main__":

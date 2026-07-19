@@ -350,6 +350,7 @@ def apply_auto_knockout_for_week(cur, challenge_week, participants, run_date):
                     discord_id=participant.discord_id,
                     mulligan_checkin_id=mulligan_id,
                     mulligan_day=mulligan_day,
+                    remaining_checkin_days=effective_remaining_days,
                 )
             )
         else:
@@ -430,24 +431,51 @@ def build_auto_knockout_alerts_for_week(challenge_week, run_date, participants):
     return events
 
 
+def _format_mulligan_save_line(group):
+    mentions = format_natural_language_list(
+        f"<@{event.discord_id}>" for event in group
+    )
+    mulligan_day = group[0].mulligan_day
+    remaining_days = format_day_list(group[0].remaining_checkin_days)
+    verb = "was" if len(group) == 1 else "were"
+    line = f"- {mentions} {verb} saved by a mulligan on {mulligan_day}"
+    if remaining_days:
+        avoid = "to avoid knockout" if len(group) == 1 else "to avoid a knockout"
+        line += f" and must check in on {remaining_days} {avoid}"
+    return line + "."
+
+
 def build_auto_knockout_alert_message(events):
+    mulligans = [event for event in events if event.action == "mulligan"]
     warnings = [event for event in events if event.action == "warning"]
-    if len(warnings) == 0:
+    if len(mulligans) == 0 and len(warnings) == 0:
         return None
 
-    groups = {}
+    lines = []
+
+    mulligan_groups = {}
+    for event in mulligans:
+        key = (event.mulligan_day, event.remaining_checkin_days)
+        mulligan_groups.setdefault(key, []).append(event)
+
+    for _, group in sorted(
+        mulligan_groups.items(),
+        key=lambda item: (item[0][0] or "", item[0][1]),
+    ):
+        lines.append(_format_mulligan_save_line(group))
+
+    warning_groups = {}
     for event in warnings:
         key = (event.remaining_checkin_days, event.has_mulligan_available)
-        groups.setdefault(key, []).append(event)
+        warning_groups.setdefault(key, []).append(event)
 
     # Knockout-risk warnings (no mulligan left) before mulligan-use warnings.
-    ordered_groups = sorted(
-        groups.items(),
+    ordered_warning_groups = sorted(
+        warning_groups.items(),
         key=lambda item: (item[0][1], item[0][0]),
     )
 
-    lines = []
-    for (remaining_checkin_days, has_mulligan_available), group in ordered_groups:
+    for (remaining_checkin_days, has_mulligan_available), group in ordered_warning_groups:
         mentions = format_natural_language_list(
             f"<@{event.discord_id}>" for event in group
         )
@@ -464,30 +492,16 @@ def build_auto_knockout_alert_message(events):
 
 
 def build_auto_knockout_reconciliation_message(events):
-    mulligans = [event for event in events if event.action == "mulligan"]
     knockouts = [event for event in events if event.action == "knockout"]
-    sections = []
-
-    if knockouts:
-        lines = [
-            f"- <@{event.discord_id}> has been knocked out with "
-            f"{event.checkin_count}/{event.required_checkins} T1+ check-ins this week."
-            for event in knockouts
-        ]
-        sections.append("## Knockouts\n" + "\n".join(lines))
-
-    if mulligans:
-        lines = [
-            f"- <@{event.discord_id}> was saved from knockout by their mulligan "
-            f"on {event.mulligan_day}."
-            for event in mulligans
-        ]
-        sections.append("## Saved\n" + "\n".join(lines))
-
-    if len(sections) == 0:
+    if len(knockouts) == 0:
         return None
 
-    return "\n".join(sections)
+    lines = [
+        f"- <@{event.discord_id}> has been knocked out with "
+        f"{event.checkin_count}/{event.required_checkins} T1+ check-ins this week."
+        for event in knockouts
+    ]
+    return "## Knockouts\n" + "\n".join(lines)
 
 
 def build_auto_knockout_daily_message(action_events, warning_events):
@@ -497,7 +511,18 @@ def build_auto_knockout_daily_message(action_events, warning_events):
     if reconciliation_message is not None:
         sections.append(reconciliation_message)
 
-    alert_message = build_auto_knockout_alert_message(warning_events)
+    # Mulligan saves live in Warnings; skip duplicate consequence warnings for
+    # challengers who were just saved in this same run.
+    mulligan_events = [event for event in action_events if event.action == "mulligan"]
+    saved_challenger_ids = {event.challenger_id for event in mulligan_events}
+    filtered_warnings = [
+        event
+        for event in warning_events
+        if event.challenger_id not in saved_challenger_ids
+    ]
+    alert_message = build_auto_knockout_alert_message(
+        mulligan_events + filtered_warnings
+    )
     if alert_message is not None:
         sections.append(alert_message)
 

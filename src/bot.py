@@ -121,10 +121,10 @@ async def bmr_command(ctx: discord.ApplicationContext):
 
 
 @bot.slash_command(
-    name="testpodium",
+    name="podium-test",
     description="Test the podium results message for the most recently ended challenge",
 )
-async def testpodium_command(ctx: discord.ApplicationContext):
+async def podium_test_command(ctx: discord.ApplicationContext):
     """Send the results message for the most recently ended challenge."""
     from slash_commands.testpodium import (
         get_most_recently_ended_challenge,
@@ -148,7 +148,7 @@ async def testpodium_command(ctx: discord.ApplicationContext):
     try:
         await ctx.followup.send(msg)
     except Exception as e:
-        logging.exception(f"Error sending testpodium message: {e}")
+        logging.exception(f"Error sending podium-test message: {e}")
         await ctx.followup.send(f"Error sending message: {str(e)}")
 
 
