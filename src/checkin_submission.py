@@ -42,15 +42,19 @@ async def send_checkin_feedback(message, tier, saved):
     log = medal_log.get_medal_log(saved.week.id)
     logging.info("DISCORD: medal log %s", log)
 
-    relevant_medals = [medal for medal in log if medal.checkin_id == saved.checkin_id]
+    # Keep retired time medals in storage, but exclude them before reactions
+    # and earned/stolen/still-held announcement handling alike.
+    relevant_medals = [
+        medal for medal in log
+        if medal.checkin_id == saved.checkin_id and medal.medal_name not in SILENT_MEDALS
+    ]
     if relevant_medals:
         logging.info("DISCORD: medals for checkin %s", relevant_medals)
 
-        # Add reactions for all medals
+        # Add reactions only for visible medals.
         for medal in relevant_medals:
             await message.add_reaction(medal.medal_emoji)
 
-        relevant_medals = [m for m in relevant_medals if m.medal_name not in SILENT_MEDALS]
         # Only all-time records bypass early-week silence. Season/year records
         # follow the normal suppression and opening roundup schedule.
         if should_suppress_medal_announcements(saved.week.start):

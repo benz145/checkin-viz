@@ -4,13 +4,14 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from base_queries import challenger_by_discord_id, get_current_challenge_week
-from medal_constants import NON_STEALABLE_MEDALS
+from medal_constants import NON_STEALABLE_MEDALS, SILENT_MEDALS
 from medal_roundup import describe_medal
 import medals
 from personal_records import get_period_personal_records
 
 
 def build_medal_case(held_medals, record, active_week=True, viewer_discord_id=None, period_records=()):
+    held_medals = [row for row in held_medals if row.medal_name not in SILENT_MEDALS]
     lines = ["## Medal Case", "", "**Currently Held**"]
     if not active_week:
         lines.append("There is no active challenge week right now.")

@@ -131,9 +131,9 @@ their first-achieved dates. With no active challenge week, the all-time and curr
 year records remain available. All three records can be earned by multiple users
 independently and are retained in challenge summaries.
 
-Earliest/latest weekly and overall medals continue to be tracked, reacted to, and
-listed with their holders in `/medal-case`, but are omitted from live medal replies,
-opening roundups, and challenge-summary announcements.
+Earliest/latest weekly and overall medals continue to be tracked in the database,
+but produce no medal reactions, earned/stolen/still-held replies, opening roundup
+entries, or challenge-summary announcements, and are hidden from `/medal-case`.
 
 No database migration or historical announcement replay is required. To run the
 PostgreSQL regression tests, set `TEST_DB_CONNECT_STRING` to a local test database
@@ -146,8 +146,8 @@ The Discord bot supports a small set of slash commands to help manage challenges
 
 - `/chart`: Display the current challenge chart as an image.
 - `/medal-case`: Privately list all current stealable medal holders for the current
-  challenge/week, with your own medals first and each holder's tier or original
-  local check-in time, plus your all-time, selected-season, and current-year personal
+  challenge/week (excluding retired earliest/latest medals), with your own medals
+  first and each holder's tier, plus your all-time, selected-season, and current-year personal
   tier records and the dates first achieved. The all-time record is shown between challenges, even
   if it predates the introduction of the personal-record medal.
 - `/green`: Check whether the current week is a green week.

@@ -65,7 +65,17 @@ class PeriodAnnouncementTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(suppressed=suppressed):
                 message = await self.feedback([self.row(name) for name in SILENT_MEDALS], suppressed)
                 message.reply.assert_not_awaited()
-                message.add_reaction.assert_any_await("🏆")
+                self.assertEqual([call.args[0] for call in message.add_reaction.await_args_list], ["✅", "🔥"])
+
+    async def test_time_medal_steals_and_self_improvements_never_announce_or_react(self):
+        for name in SILENT_MEDALS:
+            for previous_owner in ("123", "456"):
+                with self.subTest(name=name, previous_owner=previous_owner):
+                    row = self.row(name, stolen_checkin_challenger_name="Previous",
+                                   stolen_discord_id=previous_owner)
+                    message = await self.feedback([row], False)
+                    message.reply.assert_not_awaited()
+                    self.assertEqual([call.args[0] for call in message.add_reaction.await_args_list], ["✅", "🔥"])
 
     async def test_time_medal_does_not_hide_a_record_announcement(self):
         message = await self.feedback([

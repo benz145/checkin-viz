@@ -32,7 +32,8 @@ class MedalCaseCommandTests(unittest.IsolatedAsyncioTestCase):
     async def test_private_case_shows_all_holders_with_own_medals_first(self):
         record = NS(tier="T15", record_date=date(2026, 10, 25))
         rows = [
-            standing("highest_tier_week"), standing("earliest_for_week", "456"),
+            standing("highest_tier_week"), standing("highest_tier_challenge", "456"),
+            standing("earliest_for_week", "456"), standing("latest_for_week"),
             standing("green", emoji="🟩"), standing("highest_tier_personal", emoji="🏆"),
         ]
         with patch.object(medal_case, "challenger_by_discord_id", return_value=self.challenger) as lookup, patch.object(
@@ -54,8 +55,10 @@ class MedalCaseCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("- 🏆 T15 (October 25, 2026)", content)
         self.assertIn("October 25, 2026", content)
         self.assertIn("**Highest Weekly Tier**\n  - <@123> (T15)", content)
-        self.assertIn("**Earliest Weekly Check-in**\n  - <@456> (11:46PM)", content)
-        self.assertLess(content.index("Highest Weekly Tier"), content.index("Earliest Weekly Check-in"))
+        self.assertIn("**Highest Overall Tier**\n  - <@456> (T15)", content)
+        self.assertLess(content.index("Highest Weekly Tier"), content.index("Highest Overall Tier"))
+        self.assertNotIn("Earliest", content)
+        self.assertNotIn("Latest", content)
         self.assertTrue(content.startswith("## Medal Case\n\n**Currently Held**"))
         self.assertIn("**Your Personal Tier Record**\n- 🏆 T15 (October 25, 2026)", content)
         self.assertNotIn("Green Week", content)
@@ -112,14 +115,16 @@ class MedalCaseCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("No stealable medals are currently held", content)
         self.assertIn("No personal tier record yet", content)
 
-    def test_time_details_use_twelve_hour_clock_including_midnight_and_noon(self):
+    def test_retired_time_medals_are_hidden_even_when_passed_to_formatter(self):
         rows = [
             standing("earliest_for_week", when=datetime(2026, 10, 25, 0, 5)),
             standing("latest_for_week", when=datetime(2026, 10, 25, 12, 0)),
+            standing("earliest_for_challenge"), standing("latest_for_challenge"),
         ]
         content = medal_case.build_medal_case(rows, None, viewer_discord_id=123)
-        self.assertIn("(12:05AM)", content)
-        self.assertIn("(12:00PM)", content)
+        self.assertNotIn("Earliest", content)
+        self.assertNotIn("Latest", content)
+        self.assertIn("No stealable medals are currently held", content)
 
     def test_holder_without_discord_account_uses_name(self):
         content = medal_case.build_medal_case([standing("highest_tier_week", owner=None)], None)
@@ -177,7 +182,7 @@ class MedalCasePostgresTests(unittest.TestCase):
         self.award("latest_for_week", 1, 1)
         rows = medals.get_current_week_medal_standings(2, 2)
         self.assertEqual(rows[0].checkin_time, datetime(2026, 1, 1, 23, 46))
-        self.assertIn("(11:46PM)", medal_case.build_medal_case(rows, None))
+        self.assertNotIn("Latest Weekly Check-in", medal_case.build_medal_case(rows, None))
 
     def test_old_weekly_medals_expire_but_challenge_medals_carry_between_weeks(self):
         self.checkin(1, "T5", "2026-01-01T12:00Z")
