@@ -1,7 +1,7 @@
 import os
 import sys
 import unittest
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace as NS
 from unittest.mock import AsyncMock, patch
@@ -22,6 +22,9 @@ def standing(medal_name, owner="123", emoji="💪", tier="T15", when=None):
 
 class MedalCaseCommandTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        period_lookup = patch.object(medal_case, "get_period_personal_records", return_value=[])
+        period_lookup.start()
+        self.addCleanup(period_lookup.stop)
         self.ctx = NS(author=NS(id=123), defer=AsyncMock(), followup=NS(send=AsyncMock()))
         self.challenger = NS(id=42, tz="Asia/Tokyo")
         self.week = NS(id=7, challenge_id=2)
@@ -69,6 +72,22 @@ class MedalCaseCommandTests(unittest.IsolatedAsyncioTestCase):
         content = self.ctx.followup.send.call_args.args[0]
         self.assertIn("no active challenge week", content)
         self.assertIn("**Your Personal Tier Record**\n- 🏆 T0 (January 2, 2025)", content)
+        self.assertTrue(self.ctx.followup.send.call_args.kwargs["ephemeral"])
+
+    async def test_period_records_use_selected_challenge_and_viewers_local_year(self):
+        year_boundary = datetime(2026, 12, 31, 23, 30, tzinfo=timezone.utc)
+        periods = [NS(scope="year", label="2027", tier="T5", record_date=date(2027, 1, 1))]
+        with patch.object(medal_case, "challenger_by_discord_id", return_value=self.challenger), patch.object(
+            medal_case, "get_current_challenge_week", return_value=self.week
+        ), patch.object(medals, "get_current_week_medal_standings", return_value=[]), patch.object(
+            medals, "get_personal_tier_record", return_value=None
+        ), patch.object(medal_case, "get_period_personal_records", return_value=periods) as lookup, patch.object(
+            medal_case, "datetime", wraps=datetime
+        ) as clock:
+            clock.now.side_effect = lambda tz: year_boundary.astimezone(tz)
+            await medal_case.send_medal_case(self.ctx)
+        lookup.assert_called_once_with(42, 2, 2027)
+        self.assertIn("**Your Yearly Tier Record (2027)**\n- 🏆 T5 (January 1, 2027)", self.ctx.followup.send.call_args.args[0])
         self.assertTrue(self.ctx.followup.send.call_args.kwargs["ephemeral"])
 
     async def test_unregistered_user_gets_private_explanation(self):

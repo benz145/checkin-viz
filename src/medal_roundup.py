@@ -2,7 +2,7 @@ from datetime import datetime, time, timezone
 from zoneinfo import ZoneInfo
 
 from auto_knockout import format_natural_language_list
-from medal_constants import NON_STEALABLE_MEDALS, nice_medal_names
+from medal_constants import NON_STEALABLE_MEDALS, SILENT_MEDALS, nice_medal_names
 
 ROUNDUP_TZ = ZoneInfo("America/New_York")
 # Matches tasks.py cron "0 14 * * *". Silence until one minute later so the
@@ -82,6 +82,8 @@ def build_opening_medal_roundup_message(standings):
     user_order = []
 
     for row in standings:
+        if row.medal_name in SILENT_MEDALS:
+            continue
         discord_id = str(row.discord_id)
         if discord_id not in by_user:
             by_user[discord_id] = {"earned": [], "holds": []}

@@ -1,5 +1,6 @@
 from helpers import *
 import logging
+from personal_records import period_record_medal
 from medal_constants import (
     CHALLENGE_SCOPED_MEDALS,
     NON_STEALABLE_MEDALS,
@@ -20,6 +21,8 @@ medal_metadata = {
     "highest_tier_challenge": {"group": "B", "difficulty": 1},
     "highest_tier_week": {"group": "B", "difficulty": 2},
     "highest_tier_personal": {"group": "B", "difficulty": 3},
+    "highest_tier_personal_season": {"group": "B", "difficulty": 3},
+    "highest_tier_personal_year": {"group": "B", "difficulty": 3},
     "gold": {"group": "C", "difficulty": 3},
     "green": {"group": "C", "difficulty": 4},
     "red": {"group": "C", "difficulty": 2},
@@ -61,6 +64,8 @@ def all_medals(challenge_id, challenge_week_id):
     return medals(
         highest_tier_week(challenge_week_id),
         highest_tier_personal(challenge_week_id),
+        period_record_medal(challenge_week_id, "season"),
+        period_record_medal(challenge_week_id, "year"),
         earliest_for_week(challenge_week_id),
         latest_for_week(challenge_week_id),
         gold(challenge_week_id),
@@ -213,7 +218,7 @@ def get_current_week_medal_standings(challenge_id, challenge_week_id):
 
 
 def reconcile_medals(new_medals, current_medals):
-    # green, gold, and first to green cannot be stolen
+    # Personal records and other earned achievements cannot be stolen.
     medals = [
         {**m._asdict(), "steal": None}
         for m in new_medals

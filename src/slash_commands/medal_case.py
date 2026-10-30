@@ -1,13 +1,16 @@
 """Private view of current medal holders and the participant's personal best."""
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from base_queries import challenger_by_discord_id, get_current_challenge_week
 from medal_constants import NON_STEALABLE_MEDALS
 from medal_roundup import describe_medal
 import medals
+from personal_records import get_period_personal_records
 
 
-def build_medal_case(held_medals, record, active_week=True, viewer_discord_id=None):
+def build_medal_case(held_medals, record, active_week=True, viewer_discord_id=None, period_records=()):
     lines = ["## Medal Case", "", "**Currently Held**"]
     if not active_week:
         lines.append("There is no active challenge week right now.")
@@ -34,6 +37,14 @@ def build_medal_case(held_medals, record, active_week=True, viewer_discord_id=No
         day = record.record_date
         date_text = f"{day:%B} {day.day}, {day:%Y}"
         lines.append(f"- 🏆 {record.tier} ({date_text})")
+    for period in period_records:
+        title = "Your Seasonal Tier Record" if period.scope == "season" else "Your Yearly Tier Record"
+        lines.extend(["", f"**{title} ({period.label})**"])
+        if period.tier is None:
+            lines.append("No personal tier record yet for this period.")
+        else:
+            day = period.record_date
+            lines.append(f"- 🏆 {period.tier} ({day:%B} {day.day}, {day:%Y})")
     return "\n".join(lines)
 
 
@@ -59,8 +70,13 @@ async def send_medal_case(ctx):
                 if row.medal_name not in NON_STEALABLE_MEDALS
             ]
         record = medals.get_personal_tier_record(challenger.id)
+        period_records = get_period_personal_records(
+            challenger.id, week.challenge_id if week else None,
+            datetime.now(ZoneInfo(challenger.tz or "America/New_York")).year,
+        )
         await ctx.followup.send(
-            build_medal_case(held, record, active_week=week is not None, viewer_discord_id=ctx.author.id),
+            build_medal_case(held, record, active_week=week is not None,
+                             viewer_discord_id=ctx.author.id, period_records=period_records),
             ephemeral=True,
         )
     except Exception:

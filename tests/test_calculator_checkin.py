@@ -197,7 +197,7 @@ class MedalOwnerTests(unittest.IsolatedAsyncioTestCase):
     async def test_roundup_suppression_keeps_medal_reactions(self):
         message = NS(add_reaction=AsyncMock(), reply=AsyncMock())
         saved = submission.SavedCheckin(42, NS(id=7, challenge_id=2, start=date(2026, 9, 7)))
-        with patch.object(submission.medals, "update_medal_table"), patch.object(submission.medal_log, "get_medal_log", return_value=[NS(checkin_id=42, medal_emoji="💪")]), patch.object(submission, "should_suppress_medal_announcements", return_value=True):
+        with patch.object(submission.medals, "update_medal_table"), patch.object(submission.medal_log, "get_medal_log", return_value=[NS(checkin_id=42, medal_name="highest_tier_week", medal_emoji="💪")]), patch.object(submission, "should_suppress_medal_announcements", return_value=True):
             await submission.send_checkin_feedback(message, "T5", saved)
         message.add_reaction.assert_any_await("💪")
         message.reply.assert_not_awaited()

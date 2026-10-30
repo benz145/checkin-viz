@@ -8,6 +8,7 @@ from helpers import fetchone, with_psycopg
 import medals
 import medal_log
 from medal_roundup import should_suppress_medal_announcements, describe_medal
+from medal_constants import PERSONAL_TIER_MEDALS, SILENT_MEDALS
 
 
 @dataclass(frozen=True)
@@ -49,8 +50,9 @@ async def send_checkin_feedback(message, tier, saved):
         for medal in relevant_medals:
             await message.add_reaction(medal.medal_emoji)
 
-        # Personal records are announced immediately, including during the
-        # early-week silence window for competitive medals.
+        relevant_medals = [m for m in relevant_medals if m.medal_name not in SILENT_MEDALS]
+        # Only all-time records bypass early-week silence. Season/year records
+        # follow the normal suppression and opening roundup schedule.
         if should_suppress_medal_announcements(saved.week.start):
             relevant_medals = [
                 medal for medal in relevant_medals
@@ -59,6 +61,9 @@ async def send_checkin_feedback(message, tier, saved):
             if not relevant_medals:
                 logging.info("DISCORD: skipping medal reply before opening roundup window ends")
                 return
+
+        if not relevant_medals:
+            return
 
         # Group medals by user, action type, and (for steals) the person they stole from
         grouped_medals = defaultdict(list)
@@ -69,7 +74,10 @@ async def send_checkin_feedback(message, tier, saved):
             emoji = medal.medal_emoji or ""
             medal_display = f"{emoji} __**{nice_name}**__".strip()
 
-            if medal.medal_name == "highest_tier_personal":
+            if medal.medal_name in PERSONAL_TIER_MEDALS:
+                period = getattr(medal, "personal_period_label", None)
+                if period:
+                    medal_display += f" ({period})"
                 record_message = (
                     f"<@{medal.discord_id}> earned {medal_display} "
                     f"with a {medal.checkin_tier} check-in"

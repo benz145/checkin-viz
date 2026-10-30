@@ -122,6 +122,7 @@ class PersonalTierPostgresTests(unittest.TestCase):
         for target, replacement in (
             ("medals.fetchall", fetchall),
             ("medals.fetchone", lambda query, args=None: self.conn.execute(query, args).fetchone()),
+            ("personal_records.fetchall", fetchall),
             ("medal_log.fetchall", fetchall),
             ("medals.with_psycopg", transaction),
             ("slash_commands.testpodium.fetchall", fetchall),

@@ -150,8 +150,7 @@ class TestOpeningMedalRoundupMessage(unittest.TestCase):
         self.assertEqual(
             message,
             "## Opening Medal Roundup\n"
-            "- <@1002> currently holds ☀️ __**Earliest Weekly Check-in**__ "
-            "and 💪 __**Highest Weekly Tier**__.",
+            "- <@1002> currently holds 💪 __**Highest Weekly Tier**__.",
         )
 
     def test_challenge_scoped_holds_alongside_week_medal(self):
@@ -181,8 +180,7 @@ class TestOpeningMedalRoundupMessage(unittest.TestCase):
             message,
             "## Opening Medal Roundup\n"
             "- <@1001> earned 🟩 __**Green Week**__ and 🏅 __**Gold Week**__, "
-            "and currently holds ☀️ __**Earliest Weekly Check-in**__ "
-            "and 💪 __**Highest Weekly Tier**__.",
+            "and currently holds 💪 __**Highest Weekly Tier**__.",
         )
 
     def test_multi_user_preserves_first_appearance_order(self):
@@ -196,7 +194,6 @@ class TestOpeningMedalRoundupMessage(unittest.TestCase):
         self.assertEqual(
             message,
             "## Opening Medal Roundup\n"
-            "- <@1002> currently holds 🌙 __**Latest Weekly Check-in**__.\n"
             "- <@1001> earned 🟩 __**Green Week**__.\n"
             "- <@1003> earned 💎 __**Diamond Week**__.",
         )

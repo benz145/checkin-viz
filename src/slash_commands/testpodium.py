@@ -4,7 +4,7 @@ from datetime import datetime
 from helpers import fetchone, fetchall
 from base_queries import get_challenges
 from medals import PODIUM_EMOJIS
-from medal_constants import NON_STEALABLE_MEDALS
+from medal_constants import NON_STEALABLE_MEDALS, PERSONAL_TIER_MEDALS, SILENT_MEDALS, nice_medal_names
 from rule_sets import calculate_total_score
 
 
@@ -86,6 +86,7 @@ def get_final_medal_holders_per_week(challenge_id):
     For stealable medals, we partition by medal+week to get only the final holder.
     """
     non_stealable_list = ", ".join(f"'{name}'" for name in sorted(NON_STEALABLE_MEDALS))
+    personal_list = ", ".join(f"'{name}'" for name in sorted(PERSONAL_TIER_MEDALS))
     sql = f"""
     WITH ranked_medals AS (
         SELECT
@@ -100,7 +101,7 @@ def get_final_medal_holders_per_week(challenge_id):
                         WHEN m.medal IN ({non_stealable_list})
                         THEN m.challenger_id 
                     END,
-                    CASE WHEN m.medal = 'highest_tier_personal' THEN m.checkin_id END
+                    CASE WHEN m.medal IN ({personal_list}) THEN m.checkin_id END
                 ORDER BY m.created_at DESC
             ) as rn
         FROM medals m
@@ -202,6 +203,8 @@ def collect_all_achievement_tags(medal_records):
     """
     result = {}
     for m in medal_records:
+        if m.medal_name in SILENT_MEDALS:
+            continue
         if m.discord_id:
             if m.medal_name not in result:
                 result[m.medal_name] = {}
@@ -360,9 +363,11 @@ def gather_achievements(challenge_id):
             )
         )
 
-    personal_records = week_achievements.get("highest_tier_personal", {})
-    if personal_records:
-        lines.append(render_achievement_line("🏆", "Highest Ever Personal Tier", personal_records))
+    personal_records = any(week_achievements.get(name) for name in PERSONAL_TIER_MEDALS)
+    for name in sorted(PERSONAL_TIER_MEDALS):
+        records = week_achievements.get(name, {})
+        if records:
+            lines.append(render_achievement_line("🏆", nice_medal_names[name], records))
 
     # Group 2: Medal achievements
     gold_week = week_achievements.get("gold", {})
