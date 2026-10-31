@@ -52,7 +52,7 @@ class MedalCaseCommandTests(unittest.IsolatedAsyncioTestCase):
         content = self.ctx.followup.send.call_args.args[0]
         self.assertTrue(self.ctx.followup.send.call_args.kwargs["ephemeral"])
         self.assertIn("Highest Weekly Tier", content)
-        self.assertIn("- 🏆 T15 (October 25, 2026)", content)
+        self.assertIn("  - T15 (October 25, 2026)", content)
         self.assertIn("October 25, 2026", content)
         self.assertIn("**Highest Weekly Tier**\n  - <@123> (T15)", content)
         self.assertIn("**Highest Overall Tier**\n  - <@456> (T15)", content)
@@ -60,7 +60,7 @@ class MedalCaseCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("Earliest", content)
         self.assertNotIn("Latest", content)
         self.assertTrue(content.startswith("## Medal Case\n\n**Currently Held**"))
-        self.assertIn("**Your Personal Tier Record**\n- 🏆 T15 (October 25, 2026)", content)
+        self.assertIn("**Personal Tier Records**\n- Highest Ever\n  - T15 (October 25, 2026)", content)
         self.assertNotIn("Green Week", content)
         self.assertNotIn("Highest Ever Personal Tier", content)
 
@@ -74,7 +74,7 @@ class MedalCaseCommandTests(unittest.IsolatedAsyncioTestCase):
         holders.assert_not_called()
         content = self.ctx.followup.send.call_args.args[0]
         self.assertIn("no active challenge week", content)
-        self.assertIn("**Your Personal Tier Record**\n- 🏆 T0 (January 2, 2025)", content)
+        self.assertIn("- Highest Ever\n  - T0 (January 2, 2025)", content)
         self.assertTrue(self.ctx.followup.send.call_args.kwargs["ephemeral"])
 
     async def test_period_records_use_selected_challenge_and_viewers_local_year(self):
@@ -90,7 +90,7 @@ class MedalCaseCommandTests(unittest.IsolatedAsyncioTestCase):
             clock.now.side_effect = lambda tz: year_boundary.astimezone(tz)
             await medal_case.send_medal_case(self.ctx)
         lookup.assert_called_once_with(42, 2, 2027)
-        self.assertIn("**Your Yearly Tier Record (2027)**\n- 🏆 T5 (January 1, 2027)", self.ctx.followup.send.call_args.args[0])
+        self.assertIn("- Highest This Year\n  - T5 (January 1, 2027)", self.ctx.followup.send.call_args.args[0])
         self.assertTrue(self.ctx.followup.send.call_args.kwargs["ephemeral"])
 
     async def test_unregistered_user_gets_private_explanation(self):

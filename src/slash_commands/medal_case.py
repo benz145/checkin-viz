@@ -31,21 +31,22 @@ def build_medal_case(held_medals, record, active_week=True, viewer_discord_id=No
     else:
         lines.append("No stealable medals are currently held.")
 
-    lines.extend(["", "**Your Personal Tier Record**"])
-    if record is None:
-        lines.append("No personal tier record yet. Submit your first check-in to set one!")
-    else:
-        day = record.record_date
-        date_text = f"{day:%B} {day.day}, {day:%Y}"
-        lines.append(f"- 🏆 {record.tier} ({date_text})")
-    for period in period_records:
-        title = "Your Seasonal Tier Record" if period.scope == "season" else "Your Yearly Tier Record"
-        lines.extend(["", f"**{title} ({period.label})**"])
-        if period.tier is None:
-            lines.append("No personal tier record yet for this period.")
+    lines.extend(["", "**Personal Tier Records**"])
+    periods = {period.scope: period for period in period_records}
+    for title, best in (
+        ("Highest Ever", record),
+        ("Highest This Year", periods.get("year")),
+        ("Highest This Challenge Season", periods.get("season")),
+    ):
+        lines.append(f"- {title}")
+        if best is None or best.tier is None:
+            if title == "Highest This Challenge Season" and best is None:
+                lines.append("  - No challenge season available.")
+            else:
+                lines.append("  - No personal tier record yet.")
         else:
-            day = period.record_date
-            lines.append(f"- 🏆 {period.tier} ({day:%B} {day.day}, {day:%Y})")
+            day = best.record_date
+            lines.append(f"  - {best.tier} ({day:%B} {day.day}, {day:%Y})")
     return "\n".join(lines)
 
 

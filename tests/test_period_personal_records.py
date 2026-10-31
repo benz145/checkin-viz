@@ -103,9 +103,12 @@ class PeriodAnnouncementTests(unittest.IsolatedAsyncioTestCase):
         periods = [NS(scope="season", label="Summer 2026", tier="T12", record_date=date(2026, 6, 2)),
                    NS(scope="year", label="2026", tier=None, record_date=None)]
         content = build_medal_case([], NS(tier="T20", record_date=date(2025, 1, 1)), period_records=periods)
-        self.assertIn("**Your Personal Tier Record**\n- 🏆 T20 (January 1, 2025)", content)
-        self.assertIn("**Your Seasonal Tier Record (Summer 2026)**\n- 🏆 T12 (June 2, 2026)", content)
-        self.assertIn("**Your Yearly Tier Record (2026)**\nNo personal tier record yet", content)
+        self.assertIn("**Personal Tier Records**\n- Highest Ever\n  - T20 (January 1, 2025)", content)
+        self.assertIn("- Highest This Challenge Season\n  - T12 (June 2, 2026)", content)
+        self.assertIn("- Highest This Year\n  - No personal tier record yet.", content)
+        self.assertLess(content.index("- Highest Ever"), content.index("- Highest This Year"))
+        self.assertLess(content.index("- Highest This Year"), content.index("- Highest This Challenge Season"))
+        self.assertEqual(content.count("**Personal Tier Records**"), 1)
 
 
 @unittest.skipUnless(os.environ.get("TEST_DB_CONNECT_STRING"), "Requires local PostgreSQL")
