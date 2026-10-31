@@ -38,7 +38,7 @@ def build_medal_case(held_medals, record, active_week=True, viewer_discord_id=No
         ("Highest This Year", periods.get("year")),
         ("Highest This Challenge Season", periods.get("season")),
     ):
-        lines.append(f"- {title}")
+        lines.append(f"- **{title}**")
         if best is None or best.tier is None:
             if title == "Highest This Challenge Season" and best is None:
                 lines.append("  - No challenge season available.")
