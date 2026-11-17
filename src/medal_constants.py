@@ -26,7 +26,7 @@ nice_medal_names = {
     "highest_tier_personal": "Highest Ever Personal Tier",
     "highest_tier_personal_season": "Highest Seasonal Personal Tier",
     "highest_tier_personal_year": "Highest Yearly Personal Tier",
-    "highest_tier_challenge": "Highest Overall Tier",
+    "highest_tier_challenge": "Highest Challenge Tier",
     "highest_tier_week": "Highest Weekly Tier",
     "gold": "Gold Week",
     "all_gold": "All Gold",

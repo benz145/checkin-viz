@@ -164,7 +164,7 @@ class TestOpeningMedalRoundupMessage(unittest.TestCase):
             message,
             "## Opening Medal Roundup\n"
             "- <@1001> earned 🟩 __**Green Week**__, "
-            "and currently holds 👑 __**Highest Overall Tier**__.",
+            "and currently holds 👑 __**Highest Challenge Tier**__.",
         )
 
     def test_earned_before_currently_holds(self):

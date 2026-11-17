@@ -350,7 +350,7 @@ def gather_achievements(challenge_id):
         lines.append(
             render_highest_tier_challenge_line(
                 ":person_lifting_weights:",
-                "Highest Overall Tier",
+                nice_medal_names["highest_tier_challenge"],
                 highest_tier_challenge_details,
             )
         )
